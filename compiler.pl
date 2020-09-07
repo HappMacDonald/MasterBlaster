@@ -159,7 +159,7 @@ sub ProcessStatement
   die("Return statement does not immediately follow expression with a line-ending semicolon")
     unless(shift @$tokens eq 'SEMICOLON');
 
-  { NodeType => 'Statement'
+  { NodeType => 'ReturnStatement'
   , Expression => $expression
   };
 }
@@ -177,6 +177,43 @@ sub ProcessExpression
   };
 }
 
+sub GenerateProgram
+{ my($ast) = shift;
+
+  my($onlyFunction) = $ast->{OnlyFunction};
+
+  my($ret) = GenerateFunctionGlobal($onlyFunction);
+  $ret .= GenerateFunctionBody($onlyFunction);
+  $ret;
+}
+
+sub GenerateFunctionGlobal
+{ my($ast) = shift;
+
+  "\t.globl\t". $ast->{FunctionName} ."\n";
+}
+
+sub GenerateFunctionBody
+{ my($ast) = shift;
+
+  my($ret) = $ast->{FunctionName} .":\n";
+  $ret .= GenerateReturnStatement($ast->{OnlyStatement});
+  $ret;
+}
+
+sub GenerateReturnStatement
+{ my($ast) = shift;
+
+  my($ret) = GenerateExpression($ast->{Expression});
+  $ret .= "\tret\n";
+}
+
+sub GenerateExpression
+{ my($ast) = shift;
+
+  "\tmov\t\$". $ast->{value} .", %rax\n";
+}
+
 my($lexxed) = [];
 while(my $line = <>)
 { push(@$lexxed, @{lex($line)});
@@ -187,3 +224,5 @@ CORE::say STDERR Dumper($lexxed);
 my($ast) = ProcessProgram($lexxed);
 
 CORE::say STDERR Dumper($ast);
+
+CORE::say GenerateProgram($ast);
