@@ -42,6 +42,18 @@ my $TOKENS =
     { argumentCount => 0
     , pattern => qr(return)
     }
+  , OPERATOR_UNARY_COMLPEMENT_ADDITIVE =>
+    { argumentCount => 0
+    , pattern => qr(-)
+    }
+  , OPERATOR_UNARY_COMPLEMENT_BITWISE =>
+    { argumentCount => 0
+    , pattern => qr(~)
+    }
+  , OPERATOR_UNARY_COMPLEMENT_BOOLEAN =>
+    { argumentCount => 0
+    , pattern => qr(!)
+    }
   }
 , { IDENTIFIER =>
     { argumentCount => 1
@@ -167,14 +179,40 @@ sub ProcessStatement
 sub ProcessExpression
 { my($tokens) = shift;
 
-  die("Expression does not consist of a simple, literal integer")
-    unless(shift @$tokens eq 'LITERAL_INTEGER');
+  my($initial) = shift @$tokens;
+  my($value, $type);
 
-  my($value) = shift @$tokens;
+  if($initial eq 'LITERAL_INTEGER')
+  { $value = shift @$tokens;
+    $type = 'LiteralInteger';
+  }
+  elsif($initial =~ /^OPERATOR_UNARY_/)
+  { #$tokens = [$initial, @$tokens];
+    unshift @$tokens, $initial;
+    $value = ProcessUnaryExpression($tokens);
+    $type = 'Unary';
+  }
+  else
+  { die("Expression did not evaluate to either an integer literal or a unary expression.");
+  }
 
   { NodeType => 'Expression'
-  , value => $value
+  , Value => $value
+  , Type => $type
   };
+
+}
+
+sub ProcessUnaryExpression
+{ my($tokens) = shift;
+
+  my($operator) = shift @$tokens;
+  my($expression) = ProcessExpression($tokens);
+
+  { NoteType => 'UnaryExpression'
+  , Operator => $operator
+  , Expression => $expression
+  }
 }
 
 sub GenerateProgram
@@ -211,7 +249,40 @@ sub GenerateReturnStatement
 sub GenerateExpression
 { my($ast) = shift;
 
-  "\tmov\t\$". $ast->{value} .", %rax\n";
+  if($ast->{Type} eq 'LiteralInteger')
+  { return "\tmov\t\$". $ast->{Value} .", %rax\n";
+  }
+  elsif($ast->{Type} eq 'Unary')
+  { return GenerateUnaryExpression($ast->{Value});
+  }
+  else
+  { die("Failed sanity check: unknown type of expression.\n". Dumper($ast));
+  }
+}
+
+sub GenerateUnaryExpression
+{ my($ast) = shift;
+  my($ret) = GenerateExpression($ast->{Expression});
+  
+
+  if($ast->{Operator} eq 'OPERATOR_UNARY_COMLPEMENT_ADDITIVE')
+  { $ret .= "\tneg\t%rax\n";
+  }
+  elsif($ast->{Operator} eq 'OPERATOR_UNARY_COMPLEMENT_BITWISE')
+  { $ret .= "\tnot\t%rax\n";
+  }
+  elsif($ast->{Operator} eq 'OPERATOR_UNARY_COMPLEMENT_BOOLEAN')
+  { $ret .= <<"EOL";
+\tcmp\t\$0, %rax
+\tmov\t\$0, %rax
+\tsete\t%al
+EOL
+  }
+  else
+  { die("Failed sanity check: unknown type of unary expression.\n". Dumper($ast));
+  }
+
+  $ret;
 }
 
 my($lexxed) = [];
