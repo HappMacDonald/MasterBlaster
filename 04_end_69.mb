@@ -1,0 +1,3 @@
+main : List String -> Procedure
+main = 
+  Procedure -> exit 69

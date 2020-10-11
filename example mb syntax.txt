@@ -1,0 +1,180 @@
+== example elm...
+
+import Browser
+import Html exposing (Html, button, div, text)
+import Html.Events exposing (onClick)
+
+main =
+  Browser.sandbox { init = 0, update = update, view = view }
+
+type Msg = Increment | Decrement
+
+update msg model =
+  case msg of
+    Increment ->
+      model + 1
+
+    Decrement ->
+      model - 1
+
+view model =
+  div []
+    [ button [ onClick Decrement ] [ text "-" ]
+    , div [] [ text (String.fromInt model) ]
+    , button [ onClick Increment ] [ text "+" ]
+    ]
+
+
+== example MasterBlaster code
+
+import CLI
+-- SumType CLI.STDIOMessage =
+-- ( Begin (List String) -- The program starts, and is given its CLI arguments.
+-- | STDIN String -- A chunk of standard input text
+-- | ??? -- I've gotta learn the real deal about how interrupts work
+-- | UserDefined a -- Allow users to pack in whatever crud they feel like here as results from various commands.
+-- )
+-- SumType CLI.Command =
+-- ( STDOUT String -- Print some text to STDOUT
+-- | STDERR String -- Print some text to STDERR
+-- | PuntSTDIN String -- preload this string into STDIN buffer to prefix the next chunk of STDIN that will get delivered back to update.
+-- -- This is useful to reject STDIN data deemed "incomplete" due to arbitrary criteria, and still have another chance to process the larger whole later.
+-- -- Also useful in case one wishes to forge some STDIN data, I suppose? (putting a pin in that idea, as it might prove smelly)
+-- -- Command `PuntSTDIN ""` will optimize to be identical to CLI.Command.Noop.
+-- | Noop -- Empty command, causes nothing special to happen. Gets optimized away in practice.
+-- -- Also far less important than Elm's `Cmd.None` because I accept a list of commands and can simply accept [] instead.
+-- | End Unsigned8BitInteger -- Unsigned8BitInteger used as application return code.
+-- | ??? -- I want to learn how to fork child processes..
+-- | ??? -- and if at all possible, make them suite lightweight jobbies like BEAM uses.
+-- )
+-- CLI.STDIOProgram :
+--   Procedure
+--   ( { update : Model -- TODO: I want a more explicit mechanism to distinguish type variables from actual types?!!?
+--     , buffering : CLI.Buffering
+--     }
+--   ->List String
+--   ->Unsigned8BitInteger
+--   )
+-- Also, yes, I will allow parenthesis in SumType definitions.
+-- Possibly only surrounding the entire definition, or individual pieces though.
+-- Handling of parenthesis spanning multiple pieces but not entire collection not yet decided.
+-- SumType CLI.Buffering = Line | None
+-- -- Line means "accept input with readline conventions, and only deliver complete lines of input to application"
+-- -- None means "the instant any chunk of input is available, feed it into update"
+import NonEmptyList -- I'm trying to decide if I should automatically import "basic" modules,
+-- or else force users to manually do that?
+-- I think I will begin by forcing manual import, and see how that goes.
+-- "exposing" has no place in my import syntax. None.
+-- However, that said, any function exactly matching the module name is automatically exposed.
+-- Guaranteed no collission this way because model namespace is already unique.
+import Unsigned8BitInteger -- Instead of `import .. as` I'll just support TypeAlias of module names. :P
+
+TypeAlias Model = Unsigned8BitInteger
+TypeAlias UpdateResult = Tuple Model (List CLI.Command)
+
+-- Procedures get same type declarations that functions and constants get
+main : List String -> Unsigned8BitInteger
+main =
+  Procedure ->
+
+-- No tokens between "Procedure" and "->" means it takes no arguments
+
+-- This out-of-the-box procedure uses a version of TEA to handle interactive STDIN/STDOUT
+    CLI.STDIOProgram
+    { 
+    -- Uses CLI.STDIOMessage here instead of any user-defined message type.
+    -- STDIN is accepted by update as a message type: `STDIN String`.
+    -- STDOUT/STDERR is accepted as a CLI.Command: `STDOUT String` and `STDERR String`.
+    -- Application can terminate with `End Unsigned8BitInteger`
+    -- Upon a chunk of STDIN, line buffering either happens or it doesn't.
+    -- Anything update uses `PuntSTDIN` to kick back is exempt from buffer chunking,
+    -- and always prefixed to next chunk. Meaning that can give you multiple lines
+    -- of "input" despite using line buffering.
+    , update : CLI.STDIOMessage -> Model -> UpdateResult
+      update = update
+
+    -- No `view` because STDIO apps have no "durable view application state".
+    -- ncurses apps might, but that's not today's fish to fry.
+    , buffering : CLI.Buffering
+      buffering CLI.Buffering.Line
+    }
+
+-- update : Message -> Model -> Tuple Model CLI.Command -- or is the order swapped from this in Elm?
+update : CLI.STDIOMessage -> Model -> UpdateResult
+update = Lambda message model ->
+  let
+    IOPrompt : Model -> UpdateResult
+    IOPrompt = Lambda newModel ->
+      Tuple
+        newModel
+        [ STDOUT
+          <|LineComplete
+          <|( String.concat
+              (Model.toString newModel)
+              ": Up or Down?"
+            )
+        ]
+-- If I perfect string templating, then the above String.concat may be rewritten as:
+-- "${Model.toString newModel}: Up or Down?"
+
+  in
+  case message of
+    Begin -> -- We basically ignore commandline arguments
+      IOPrompt 0
+
+    STDIN input ->
+      let
+        lowerCaseInput : String
+        lowerCaseInput = input |> String.toLower
+
+        increment : UpdateResult
+        increment = Tuple (Increment model) []
+        
+        decrement : UpdateResult
+        decrement = Tuple (Decrement model) []
+
+      in
+      case lowerCaseInput of
+        "up" -> increment
+        "increment" -> increment
+        "more" -> increment
+        "higher" -> increment
+        "bigger" -> increment
+        "+1" -> increment
+      
+        "down" -> decrement
+        "decrement" -> decrement
+        "less" -> decrement
+        "lower" -> decrement
+        "smaller" -> decrement
+        "-1" -> decrement
+      
+
+
+
+-------------------------------------------------------
+First compilable target program: 04_end_69.mb
+Tokens?
+'IDENTIFIER_NOCAPS',
+'main',
+'COLON',
+'IDENTIFIER_CAPS',
+'List',
+'IDENTIFIER_CAPS',
+'String',
+'ARROW_THIN',
+'IDENTIFIER_CAPS',
+'Procedure',
+'END_OF_LINE',
+'IDENTIFIER_NOCAPS',
+'main',
+'EQUALS',
+'END_OF_LINE',
+'IDENTIFIER_CAPS',
+'Procedure',
+'ARROW_THIN',
+'IDENTIFIER_NOCAPS',
+'exit',
+'LITERAL_INTEGER',
+'69'
+
