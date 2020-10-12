@@ -126,22 +126,24 @@ my $TOKENS =
     , pattern => qr($END_OF_LINE)
     }
   }
+  # This token is generated instead of "detected"
+  #
+  # POSITION =>
+  # { argumentCount => 1
+  # }
 ];
 
 sub lex
 { my($input) = shift;
+  my($position) = shift;
   my($output) = [];
-  my($position) =
-  { line => 0
-  , column => 0
-  };
 
   my($fullLine) = $input;
   $input =~ s/^(\s+)//; # drop all leading whitespace
-  $position = incrementPosition($1, $position);
+  incrementPosition($1, $position);
 
   while(length $input)
-  { my($inputClone) = $input;
+  { my($inputClone) = $input; 
 #CORE::say "---";
 #CORE::say Dumper($input);
 #sleep 1;
@@ -162,8 +164,18 @@ sub lex
             ? $SUPPRESS_WS_AND_EOL
             : $SUPPRESS_WHITESPACE
             );
-          $input =~ s/^$pattern$localSuppressedWhitespace//;
-          push(@$output, $token, @matches) unless($tokenProperties->{skip});
+
+          push
+          ( @$output
+          , 'POSITION'
+          , { %$position }
+          , $token
+          , @matches
+          ) unless($tokenProperties->{skip});
+
+          $input =~ s/^($pattern$localSuppressedWhitespace)//;
+          incrementPosition($1, $position);
+
           last TOKEN_SEARCH;
         }
         else
@@ -190,7 +202,8 @@ sub incrementPosition
   my($newLines) = $str =~ tr/\n/\n/;
 
   if($newLines>0)
-  { $position->{column} = 0; # perform a carriage return. :P
+  { # perform a carriage return. :P
+    $position->{column} = 1;  # 1-based counting
   }
 
   $position->{line} += $newLines;
@@ -202,14 +215,6 @@ sub incrementPosition
 
   $position;
 }
-
-# # Will I need this to create closures at the Perl/compiler stage, or not?
-# sub ADT
-# { my(@args) = @_;
-#   sub
-#   { \@args;
-#   }
-# }
 
 sub ProcessProgram
 { my($tokens) = shift;
@@ -248,15 +253,20 @@ sub ProcessProcedure
 
 sub ProcessTypeAnnotation
 { my($tokens) = shift;
-  my($identifierNoCaps) = shift @$tokens;
 
-  die("Type annotations must start with a lowercase identifier, instead of $identifierNoCaps")
-    unless($identifierNoCaps eq 'IDENTIFIER_NOCAPS');
+  ExpectToken
+  ( $tokens
+  , 'IDENTIFIER_NOCAPS'
+  , 'Type annotations must start with a lowercase identifier'
+  );
 
   my($procedureName) = shift @$tokens;
 
-  die("Procedure name is not immediately followed by a colon")
-    unless(shift @$tokens eq 'COLON');
+  ExpectToken
+  ( $tokens
+  , 'COLON'
+  , 'Procedure name is not immediately followed by a colon'
+  );
 
   my($argumentTypes) = ProcessArgumentTypes($tokens, WantsDelimiter => TRUE);
 
@@ -297,9 +307,13 @@ sub ProcessArgumentTypes
   }
 
   if($arguments->{WantsDelimiter})
-  { die
-    ( "Type Annotation Arguments must end with either a thin arrow `->` or a newline."
-    . " Type $primaryType only allows $typeProperties->{arguments} arguments."
+  { my($position) = ProcessPossiblePosition($tokens);
+    Error
+    ( ( "Type Annotation Arguments must end with either a thin arrow `->`"
+      . " or a newline.\n"
+      . " Type $primaryType only allows $typeProperties->{arguments} arguments."
+      ) # $errorMessage
+    , $position
     ) unless(defined $TypeAnnotationEndings->{$tokens->[0]});
 
     if($tokens->[0] eq 'ARROW_THIN')
@@ -329,7 +343,6 @@ sub ProcessArgumentTypes
 sub ProcessProcedureBody
 { my($typeAnnotation) = shift;
   my($tokens) = shift;
-  my($identifierNoCaps) = shift @$tokens;
 
   my($procedureName) = 
     ExpectToken
@@ -354,9 +367,6 @@ sub ProcessProcedureBody
     . " an equals sign in Procedure body."
     )
   );
-
-# next I expect IDENTIFIER_CAPS .. followed by string 'Procedure'.
-# Can't I dry this up somehow by writing "expect" subroutines?
 
   my($errorMessage) = 'Procedure body must start with token "Procedure"';
   ExpectToken($tokens, 'IDENTIFIER_CAPS', $errorMessage);
@@ -424,25 +434,48 @@ sub ProcessSkipEndOfLine
   }
 }
 
+sub ProcessPossiblePosition
+{ my($tokens) = shift;
+  if($tokens->[0] eq 'POSITION')
+  { shift @$tokens;
+    return shift @$tokens;
+  }
+  return undef; # Not at a position token, so no position returned.
+}
+
 sub ExpectToken
 { my($tokens) = shift;
-  PeekToken($tokens, @_);
+  my(@ret) = PeekToken($tokens, @_);
   shift @$tokens;
+  @ret;
 }
 
 sub PeekToken
 { my($tokens) = shift;
   my($expectedToken) = shift;
   my($errorMessage) = shift;
+  my($position) = ProcessPossiblePosition($tokens);
 
   my($foundToken) = $tokens->[0];
 
   unless($foundToken =~ $expectedToken)
-  { CORE::say STDERR "$errorMessage\nExpected: $expectedToken, Found: $foundToken";
-    exit 1;
+  { Error($errorMessage, $position, $expectedToken, $foundToken);
   }
   
-  $foundToken; # return valid token
+  $foundToken, $position; # return valid token
+}
+
+sub Error
+{ my($errorMessage) = shift;
+  my($position) = shift;
+  my($expectedToken) = shift;
+  my($foundToken) = shift;
+  CORE::say STDERR $errorMessage;
+  CORE::say "Expected: $expectedToken" if(defined $expectedToken);
+  CORE::say "Found: $foundToken" if(defined $expectedToken);
+  CORE::say "At Line $position->{line}, Column $position->{column}"
+    if(defined $position);
+  exit 1;
 }
 
 sub GenerateProgram
@@ -515,11 +548,14 @@ EOL
   $ret;
 }
 
-die(Dumper(incrementPosition("A\n", {line => 0, column => 0})));
+my($position) =
+{ line => 1 # 1-based counting
+, column => 1 # 1-based counting
+};
 
 my($lexxed) = [];
 while(my $line = <>)
-{ push(@$lexxed, @{lex($line)});
+{ push(@$lexxed, @{lex($line, $position)});
 }
 
 CORE::say STDERR Dumper($lexxed);
@@ -528,4 +564,4 @@ my($ast) = ProcessProgram($lexxed);
 
 CORE::say STDERR Dumper($ast);
 
-CORE::say GenerateProgram($ast);
+# CORE::say GenerateProgram($ast);
