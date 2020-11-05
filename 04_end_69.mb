@@ -1,5 +1,5 @@
 main : List String -> Procedure
 main =
   Procedure.begin
-    System.exit 23
+    System.exit -5
   Procedure.end

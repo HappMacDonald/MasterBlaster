@@ -1,13 +1,14 @@
 #!/usr/bin/perl -C63
 
-die("OK: so how do I invoke a literal constant when I demand explicit integer typing? Also, how do I clarify which operators are valid for which types, such as 'additive compliment' working on all the integer types but 'boolean compliment' only working on booleans?");
-
 use strict;
 use warnings;
 use utf8;
 use feature 'unicode_strings';
 use Data::Dumper;
 use JSON;
+use Math::BigInt lib => 'GMP';
+use List::Util qw(min max);
+use POSIX qw(floor ceil round);
 use constant
 { FALSE => 0
 , TRUE => 1
@@ -115,17 +116,35 @@ my $TOKENS =
     , pattern => qr(([a-z]\w*))
     }
   , LITERAL_INTEGER =>
-    { argumentCount => 1
-    , pattern => qr(([0-9]+))
+    { argumentCount => 'named'
+    , pattern =>
+      qr(
+        (?<sign>[+-]?)
+        (?:
+          (?<base>0b) # binary = 2
+          (?<leadingZeros>[0_]*)
+          (?<mantissa>1[01_]*)
+        |
+          (?<base>0o) # octal = 8
+          (?<leadingZeros>[0_]*)
+          (?<mantissa>[1-7][0-7_]*)
+        |
+          (?<base>(?:0d)?) # decimal = 10
+          (?<leadingZeros>[0_]*)
+          (?<mantissa>[1-9][0-9_]*)
+        |
+          (?<base>0x) # hexadecimal = 16
+          (?<leadingZeros>[0_]*)
+          (?<mantissa>[1-9a-f][0-9a-f_]*)
+        )
+        (?:[e](?<exponent>[0-9_]+))? # always expresed in decimal
+        (?![a-z]) # We must NOT directly abut a letter character.
+      )xi
     }
   , EQUALS =>
     { argumentCount => 0
     , suppressEndOfLine => TRUE
     , pattern => qr(=)
-    }
-  , OPERATOR_UNARY_COMLPEMENT_ADDITIVE =>
-    { argumentCount => 0
-    , pattern => qr(-)
     }
   , END_OF_LINE =>
     { argumentCount => 0
@@ -138,6 +157,20 @@ my $TOKENS =
   # { argumentCount => 1
   # }
 ];
+my($BIT_DEPTHS) =
+{ 8 => {}
+, 16 => {}
+, 32 => {}
+, 64 => {}
+};
+my($BIT_DEPTH_KEYS) = [ sort { $a <=> $b } keys %$BIT_DEPTHS ];
+my($INTEGER_LITERAL_BASES) =
+{ '' => 10
+, '0d' => 10
+, '0x' => 16
+, '0b' => 2
+, '0o' => 8
+};
 
 sub lex
 { my($input) = shift;
@@ -150,9 +183,6 @@ sub lex
 
   while(length $input)
   { my($inputClone) = $input; 
-#CORE::say "---";
-#CORE::say Dumper($input);
-#sleep 1;
     TOKEN_SEARCH:
     for my $tokenLevel (@$TOKENS)
     { for my $token (keys %$tokenLevel)
@@ -162,9 +192,17 @@ sub lex
 
         if(my(@matches) = $input =~ /^$pattern/)
         { # truncated @matches array to be at most $argumentCount in length.
-          splice @matches, $argumentCount;
-          
-# CORE::say STDERR "Match found: ". Dumper($token, $tokenProperties, \@matches);
+          if($argumentCount eq 'named')
+          { # an array with one element,
+            # a hashref of all named capture groups.
+            @matches = 
+            ( { %+ }
+            )
+          }
+          else
+          { splice @matches, $argumentCount;
+          }
+
           my($localSuppressedWhitespace) =
             ( $tokenProperties->{suppressEndOfLine}
             ? $SUPPRESS_WS_AND_EOL
@@ -184,10 +222,7 @@ sub lex
 
           last TOKEN_SEARCH;
         }
-        else
-        {
-# CORE::say STDERR "Match NOT found: $token" . Dumper($tokenProperties, @matches);
-        }
+        # else Match NOT found
       }
     }
 
@@ -460,7 +495,8 @@ sub ParseExpression
 
   my($initial, $expressionPosition) = ExpectTokens
   ( $tokens
-  , qr(^LITERAL_INTEGER$|^OPERATOR_UNARY_)
+  # , qr(^LITERAL_INTEGER$|^OPERATOR_UNARY_)
+  , 'LITERAL_INTEGER'
   , ( 'Expression did not evaluate to either'
     . ' an integer literal or a unary expression.'
     )
@@ -468,15 +504,99 @@ sub ParseExpression
   my($value, $type);
 
   if($initial eq 'LITERAL_INTEGER')
-  { $value = shift @$tokens;
-    $type = 'LiteralInteger';
+  { my $arguments = shift @$tokens;
+    my $sign = $arguments->{sign};
+    $type = $sign eq ''?'Unsigned':'Signed';
+    my $positiveValueWaste1 = ($sign eq '-'?0:1);
+    my $signWasteBit = ($type eq 'Unsigned'?0:1);
+
+    my $base = $INTEGER_LITERAL_BASES->{lc($arguments->{base})};
+    my $bitsByLengthNerfIfNotAligned = $base==10 || $base==8?1:0;
+
+    my $leadingZeros = $arguments->{leadingZeros}; # stays a string
+    $leadingZeros =~ s/_//g;
+
+    my $mantissa = $arguments->{mantissa};
+    my $exponent = $arguments->{exponent} || 0;
+
+    my $magnitude = Math::BigInt->from_base($mantissa, $base);
+# CORE::say
+#   Dumper
+#   ( [ magnitude => $magnitude->bdstr
+#     , mantissa => $mantissa
+#     , base => $base
+#     ]
+#   );
+    $magnitude = $magnitude * Math::BigInt->new($base)->bpow($exponent);
+
+# CORE::say
+#   Dumper
+#   ( [ magnitude => $magnitude->bdstr
+#     , mantissa => $mantissa
+#     , base => $base
+#     , extra => Math::BigInt->new($base)->bpow($exponent)->bdstr
+#     ]
+#   );
+
+    my($bitsByLength) =
+    ( ( length($leadingZeros . $magnitude->to_base($base))
+      - $bitsByLengthNerfIfNotAligned
+      )
+    * log($base)/log(2)
+    + $signWasteBit
+    );
+    my($bitsByValue) = 
+    ( ceil(log($magnitude->bdstr + $positiveValueWaste1) / log(2))
+    + $signWasteBit
+    );
+    my($bitsNeeded) = max($bitsByLength, $bitsByValue);
+    my($typeSize) = 0;
+    my($largestBitDepth) = $BIT_DEPTH_KEYS->[-1];
+    
+    for my $bits (@$BIT_DEPTH_KEYS)
+    { if($bits>=$bitsNeeded)
+      { $typeSize = $bits;
+        last;
+      }
+    }
+
+    if($typeSize < 1)
+    { Error
+      ( "Integer literal is too large to express in $largestBitDepth bits"
+      , $expressionPosition
+      , ( "An integer literal less than 2^$largestBitDepth aka "
+        . Math::BigInt->bone()->blsft($largestBitDepth)
+        )
+      , 'An integer whose magnitude is '. $magnitude
+      )
+    }
+
+    $type .= $typeSize . 'BitInteger';
+    $value = "${sign}1" * $magnitude;
+# die
+# ( Dumper
+#   ( [ sign => $sign
+#     , positiveValueWaste1 => $positiveValueWaste1
+#     , signWasteBit => $signWasteBit
+#     , base => $base
+#     , bitsByLengthNerfIfNotAligned => $bitsByLengthNerfIfNotAligned
+#     , leadingZeros => $leadingZeros
+#     , mantissa => $mantissa
+#     , exponent => $exponent
+#     , magnitude => $magnitude->bdstr
+#     , a => ($leadingZeros . $magnitude->to_base($base))
+#     , b => length($leadingZeros . $magnitude->to_base($base))
+#     , bitsByLength => $bitsByLength
+#     , bitsByValue => $bitsByValue
+#     , bitsNeeded => $bitsNeeded
+#     , typeSize => $typeSize
+#     , largestBitDepth => $largestBitDepth
+#     , type => $type
+#     , value => $value->bdstr
+#     ]
+#   )
+# )
   }
-  elsif($initial =~ /^OPERATOR_UNARY_/)
-  { unshift @$tokens, $initial;
-    $value = ParseUnaryExpression($tokens, $expressionPosition);
-    $type = 'Unary';
-  }
-  # We have guardrail to assume no other options are possible rn.
 
   { NodeType => 'Expression'
   , Value => $value
@@ -539,8 +659,6 @@ sub ExpectTokens
   my($foundTokens, $position) = @ret;
   my($tokens) = shift @args;
 
-# CORE::say STDERR "ExpectTokens parsing found token list:". Dumper(\@ret);
-
   if(ref($foundTokens) ne 'ARRAY')
   { $foundTokens = [$foundTokens];
   }
@@ -549,7 +667,6 @@ sub ExpectTokens
     { my($compare);
       do # Inspect and discard each token until one matches this returned token
       { $compare = shift @$tokens;
-# CORE::say STDERR "ExpectTokens popping '$compare' to compare against '$token'";
       } while($token ne $compare);
     } # repeat that for the entire list of returned tokens.
   }
@@ -557,9 +674,7 @@ sub ExpectTokens
 }
 
 sub PeekTokens
-{ 
-# CORE::say STDERR "Ran PeekTokens with: ". Dumper(\@_);
-  my($tokens) = shift;
+{ my($tokens) = shift;
   my($expectedTokens) = shift;
   my($errorMessage) = shift;
   my($position) = ParsePossiblePosition($tokens) || shift;
@@ -568,52 +683,23 @@ sub PeekTokens
   my($expectedToken);
 
   if(ref($expectedTokens) eq 'ARRAY')
-  { 
-# CORE::say STDERR "expectedTokens is an array";
-
-    if(scalar(@$expectedTokens) < 1)
-    { 
-# CORE::say STDERR "PeekTokens bottoming out a recursive loop";
-      return(undef, $position);
+  { if(scalar(@$expectedTokens) < 1)
+    { return(undef, $position);
     }
-# CORE::say STDERR "expectedTokens does NOT look empty:". Dumper($expectedTokens);
     $furtherExpectedTokens = [splice @$expectedTokens, 1];
     $expectedToken = $expectedTokens->[0];
-#     my($unused);
-#     for my $expectedToken (@$expectedTokens)
-#     { # $foundToken will ultimately only record final token.
-# CORE::say Dumper splice @$tokens, 0, 4;
-# CORE::say "[$expectedToken, ";
-#       ($foundToken, $unused) =
-#         PeekTokens
-#         ( [splice @$tokens, 1]
-#         , $expectedToken
-#         , $errorMessage
-#         , $position
-#         );
-# CORE::say Dumper splice @$tokens, 0, 4;
-# CORE::say "$foundToken]";
-    # }
-    # Fall through to return at end of subroutine
   }
   else # We assume $expectedTokens is either a String or a Regexp
   { $expectedToken = $expectedTokens; # singularize variable name
   }
 
-# CORE::say STDERR ("PeekTokens: expect $expectedToken, got $foundToken");
-
-    unless
-    ( ref($expectedToken) eq 'Regexp'
-    ? $foundToken =~ $expectedToken # Match a Regexp
-    : $foundToken eq $expectedToken # Equate a String
-    )
-    { Error($errorMessage, $position, $expectedToken, $foundToken);
-    }
-  # }
-
-# `[ splice @{[@$tokens]}, 1 ]` means:
-# dup $tokens, remove first element from copy,
-# and return the remaining arrayref.
+  unless
+  ( ref($expectedToken) eq 'Regexp'
+  ? $foundToken =~ $expectedToken # Match a Regexp
+  : $foundToken eq $expectedToken # Equate a String
+  )
+  { Error($errorMessage, $position, $expectedToken, $foundToken);
+  }
 
   my($q) =
     PeekTokens
@@ -622,22 +708,6 @@ sub PeekTokens
     , $errorMessage
     , $position
     );
-
-# CORE::say STDERR
-# ( "About to leave PeekTokens, recurse got me: '"
-# . Dumper($q)
-# . "' which is "
-# . ( defined $q
-#   ? ( ref($q) eq 'ARRAY'
-#     ? 'An Array'
-#     : 'Not an Array, but defined nonetheless'
-#     )
-#   : 'undefined'
-#   )
-# . '. Also, $foundToken is \''
-# . Dumper($foundToken)
-# . '\'.'
-# );
 
   ( defined $q
   ? ( ref($q) eq 'ARRAY'
@@ -719,12 +789,13 @@ sub GenerateSystemExit
 sub GenerateExpression
 { my($ast) = shift;
 
-  if($ast->{Type} eq 'LiteralInteger')
-  { return "\tmov\t\$". $ast->{Value} .", %rax\n";
+  if($ast->{Type} eq 'Unsigned8BitInteger')
+  # { return "\tmov\t\$". $ast->{Value} .", %rax\n";
+  { return "\tmov\t\$". $ast->{Value} .", %al\n";
   }
-  elsif($ast->{Type} eq 'Unary')
-  { return GenerateUnaryExpression($ast->{Value});
-  }
+  # elsif($ast->{Type} eq 'Unary')
+  # { return GenerateUnaryExpression($ast->{Value});
+  # }
   else
   { die("Failed sanity check: unknown type of expression.\n". Dumper($ast));
   }
@@ -776,6 +847,7 @@ while(my $line = <>)
 }
 
 # CORE::say STDERR Dumper($lexxed);
+# die Dumper($lexxed);
 
 my($ast) = ParseProgram($lexxed);
 
