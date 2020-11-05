@@ -1,5 +1,6 @@
 	.globl	main
 main:
-	mov	$23, %rax
+	mov	$2, %rax
+	neg	%rax
 	ret
 

@@ -1,5 +1,7 @@
 #!/usr/bin/perl -C63
 
+die("OK: so how do I invoke a literal constant when I demand explicit integer typing? Also, how do I clarify which operators are valid for which types, such as 'additive compliment' working on all the integer types but 'boolean compliment' only working on booleans?");
+
 use strict;
 use warnings;
 use utf8;
@@ -99,10 +101,14 @@ my $TOKENS =
     , suppressEndOfLine => TRUE
     , pattern => qr(\\)
     }
+  , INVOKE_MODULE_METHOD =>
+    { argumentCount => 1
+    , pattern => qr(^\.([a-z]\w*))
+    }
   }
 , { IDENTIFIER_CAPS =>
     { argumentCount => 1
-    , pattern => qr(([A-Z]\w*))
+    , pattern => qr(((?:[A-Z]\w*(?:\.[A-Z]\w*)*)))
     }
   , IDENTIFIER_NOCAPS =>
     { argumentCount => 1
@@ -158,7 +164,7 @@ sub lex
         { # truncated @matches array to be at most $argumentCount in length.
           splice @matches, $argumentCount;
           
-#CORE::say "Match found: ". Dumper($token, $tokenProperties, \@matches);
+# CORE::say STDERR "Match found: ". Dumper($token, $tokenProperties, \@matches);
           my($localSuppressedWhitespace) =
             ( $tokenProperties->{suppressEndOfLine}
             ? $SUPPRESS_WS_AND_EOL
@@ -173,27 +179,35 @@ sub lex
           , @matches
           ) unless($tokenProperties->{skip});
 
-          $input =~ s/^($pattern$localSuppressedWhitespace)//;
+          $input =~ s/^($pattern$localSuppressedWhitespace?)//;
           incrementPosition($1, $position);
 
           last TOKEN_SEARCH;
         }
         else
         {
-#CORE::say "Match NOT found: $token" . Dumper($tokenProperties, @matches);
+# CORE::say STDERR "Match NOT found: $token" . Dumper($tokenProperties, @matches);
         }
       }
     }
 
-    die("Unrecognized token: $input\n$fullLine")
-      if($input eq $inputClone);
+    if($input eq $inputClone)
+    { trim($input);
+      trim($fullLine);
+      Error
+      ( ( "Unrecognized token: $input"
+        . "\nIn full line: $fullLine"
+        )
+      , $position
+      );
+    }
   }
 
   $output;
 }
 
 sub incrementPosition
-{ my($str) = shift;
+{ my($str) = shift || '';
   my($position) = shift;
 
   # this flat-out counts the newlines in the string
@@ -216,86 +230,100 @@ sub incrementPosition
   $position;
 }
 
-sub ProcessProgram
+sub ParseProgram
 { my($tokens) = shift;
 
-  { NodeType => "Program"
-  , OnlyProcedure => ProcessProcedure($tokens)
+  { NodeType => 'Program'
+  , Position => PeekPosition($tokens)
+  , OnlyProcedure => ParseProcedure($tokens)
   };
 }
 
-sub ProcessProcedure
+sub ParseProcedure
 { my($tokens) = shift;
 
-  PeekToken
-  ( $tokens
-  , 'IDENTIFIER_NOCAPS'
-  , 'Procedure names must begin lowercase'
-  );
+  my($notused, $parsePosition) =
+    PeekTokens
+    ( $tokens
+    , [ qw(IDENTIFIER_NOCAPS main) ]
+    , 'Only procedure name supported right now is lowercase "main".'
+    );
 
-  # $tokens->[0] remains 'IDENTIFIER_NOCAPS'
   my($procedureName) = $tokens->[1];
-  #   PeekToken
-  #   ( $tokens
-  #   # , 'main'
-  #   , qr(^[a-z])
-  #   , 'Program\'s (only) procedure must be named "main" (case sensitive)'
-  #   );
 
-  my($typeAnnotation) = ProcessTypeAnnotation($tokens);
+  my($typeAnnotation) = ParseTypeAnnotation($tokens, $parsePosition);
 
-  { NodeType => "Procedure"
+  { NodeType => 'Procedure'
+  , Position => $parsePosition
   , ProcedureName => $procedureName
   , TypeAnnotation => $typeAnnotation
-  , ProcedureBody => ProcessProcedureBody($typeAnnotation, $tokens)
+  , ProcedureBody => ParseProcedureBody($tokens, $typeAnnotation)
   };
 }
 
-sub ProcessTypeAnnotation
+sub ParseTypeAnnotation
 { my($tokens) = shift;
+  my($typeAnnotationPosition) = shift;
 
-  ExpectToken
+  ExpectTokens
   ( $tokens
   , 'IDENTIFIER_NOCAPS'
   , 'Type annotations must start with a lowercase identifier'
   );
-
   my($procedureName) = shift @$tokens;
 
-  ExpectToken
+  ExpectTokens
   ( $tokens
   , 'COLON'
   , 'Procedure name is not immediately followed by a colon'
   );
 
-  my($argumentTypes) = ProcessArgumentTypes($tokens, WantsDelimiter => TRUE);
+  my($argumentTypes) =
+    ParseArgumentTypes($tokens);
 
-  ExpectToken
+  ExpectTokens
   ( $tokens
   , 'END_OF_LINE'
   , '(unreachable error) Complete Type Annotations must end with a newline.'
   );
 
-  { NodeType => "TypeAnnotation"
+  { NodeType => 'TypeAnnotation'
+  , Position => $typeAnnotationPosition
   , ProcedureName => $procedureName
   , ArgumentTypes => $argumentTypes
   };
 }
 
-sub ProcessArgumentTypes
+sub ParseArgumentTypes
 { my($tokens) = shift;
   my($arguments) =
-  { WantsDelimiter => TRUE
-  , @_ # accept remaining arguments to stomp over defaults given 
+  { ParentType => FALSE
+  , WantsDelimiter => TRUE
+  , @_ # accept remaining arguments to stomp over defaults given
   };
+  my($parentType) = $arguments->{ParentType};
 
-  my($identifierCaps) = 
-    ExpectToken($tokens, 'IDENTIFIER_CAPS', 'Types must be uppercase identifiers');
+  $arguments->{WantsDelimiter} = FALSE if($parentType);
+
+  my($identifierCaps, $typePosition) = 
+    ExpectTokens
+    ( $tokens
+    , 'IDENTIFIER_CAPS'
+    , ( !$parentType
+      ? 'Types must always be uppercase identifiers'
+      : ( "We are expecting a Type Argument to type '$parentType' here.\n"
+        . $parentType
+        . ' has '
+        . Plural($Types->{$parentType}{arguments}, 'Type Argument')
+        . ', and Types must always be uppercase identifiers.'
+        )
+      )
+    );
 
   my($primaryType) = shift @$tokens;
   my($typeProperties) = $Types->{$primaryType};
 
-  die("'$primaryType' is not a known Type")
+  Error("'$primaryType' is not a known Type", $typePosition)
     unless(defined($typeProperties));
 
   my($argumentCount) = $typeProperties->{arguments};
@@ -303,28 +331,36 @@ sub ProcessArgumentTypes
   my($typeArguments) = [];
 
   while($argumentCount-->0)
-  { push @$typeArguments, ProcessArgumentTypes($tokens, WantsDelimiter => FALSE);
+  { push
+    ( @$typeArguments
+    , ParseArgumentTypes($tokens, ParentType => $primaryType)
+    );
   }
 
   if($arguments->{WantsDelimiter})
-  { my($position) = ProcessPossiblePosition($tokens);
+  { my($delimiterPosition) = ParsePossiblePosition($tokens);
     Error
     ( ( "Type Annotation Arguments must end with either a thin arrow `->`"
       . " or a newline.\n"
-      . " Type $primaryType only allows $typeProperties->{arguments} arguments."
+      . "Type '$primaryType' only allows "
+      . Plural($typeProperties->{arguments}, 'argument')
+      . '.'
       ) # $errorMessage
-    , $position
+    , $delimiterPosition
+    , join(' or ', keys %$TypeAnnotationEndings)
+    , $tokens->[0]
     ) unless(defined $TypeAnnotationEndings->{$tokens->[0]});
 
     if($tokens->[0] eq 'ARROW_THIN')
     { shift @$tokens; # discard the thin arrow.
 
       return
-      { NodeType => "ArgumentTypes"
+      { NodeType => 'ArgumentTypes'
+      , Position => $typePosition
       , MoreArguments => TRUE
       , PrimaryType => $primaryType
       , TypeArguments => $typeArguments
-      , NextArgument => ProcessArgumentTypes($tokens, WantsDelimiter => TRUE)
+      , NextArgument => ParseArgumentTypes($tokens)
       };
     }
     # the only other possibility is that $tokens->[0] eq 'END_OF_LINE'
@@ -333,34 +369,38 @@ sub ProcessArgumentTypes
   }
 
   return
-  { NodeType => "ArgumentTypes"
+  { NodeType => 'ArgumentTypes'
+  , Position => $typePosition
   , MoreArguments => FALSE
   , PrimaryType => $primaryType
   , TypeArguments => $typeArguments
   };
 }
 
-sub ProcessProcedureBody
-{ my($typeAnnotation) = shift;
-  my($tokens) = shift;
-
-  my($procedureName) = 
-    ExpectToken
+sub ParseProcedureBody
+{ my($tokens) = shift;
+  my($typeAnnotation) = shift;
+  
+  my($notused, $procedureBodyPosition) =
+    ExpectTokens
     ( $tokens
     , 'IDENTIFIER_NOCAPS'
     , 'Procedure definitions must start with a lowercase identifier'
     );
 
-  ExpectToken
-  ( $tokens
-  , $typeAnnotation->{ProcedureName}
-  , ( 'Procedure name in type annotation'
-    . ' does not match procedure name in procedure body.'
-    )
-  );
-  ProcessSkipEndOfLine($tokens);
+  my($procedureName, $notused2) =
+    ExpectTokens
+    ( $tokens
+    , $typeAnnotation->{ProcedureName}
+    , ( 'Procedure name in type annotation'
+      . ' does not match procedure name in procedure body.'
+      )
+    , $procedureBodyPosition
+    );
 
-  ExpectToken
+  ParseSkipEndOfLine($tokens);
+
+  ExpectTokens
   ( $tokens
   , 'EQUALS'
   , ( "Procedure Name '$procedureName' not followed by"
@@ -368,31 +408,63 @@ sub ProcessProcedureBody
     )
   );
 
-  my($errorMessage) = 'Procedure body must start with token "Procedure"';
-  ExpectToken($tokens, 'IDENTIFIER_CAPS', $errorMessage);
-  ExpectToken($tokens, 'Procedure', $errorMessage);
+  ExpectTokens
+  ( $tokens
+  , [ qw( IDENTIFIER_CAPS Procedure INVOKE_MODULE_METHOD begin ) ]
+  , 'Procedure body must start with a call to "Procedure.begin"'
+  );
+
+  ParseSkipEndOfLine($tokens);
+
+  my($statements) = [ParseStatement($tokens)];
+
+  ExpectTokens
+  ( $tokens
+  , [ qw( IDENTIFIER_CAPS Procedure INVOKE_MODULE_METHOD end ) ]
+  , 'Procedure body must end with a call to "Procedure.end"'
+  );
+
+  { NodeType => 'ProcedureBody'
+  , Position => $procedureBodyPosition
+  , ProcedureName => $procedureName
+  , Statements => $statements
+  }
 }
 
-sub ProcessStatement
+sub ParseStatement
 { my($tokens) = shift;
 
-  die("Statement begins with something other than the 'return' case sensitive keyword")
-    unless(shift(@$tokens) eq 'KEYWORD_RETURN');
+  my($junk, $statementPosition) =
+    ExpectTokens
+    ( $tokens
+    , [ qw( IDENTIFIER_CAPS System INVOKE_MODULE_METHOD exit ) ]
+    , 'Only allowed Procedure call in Procedure body is `System.exit`'
+    );
 
-  my($expression) = ProcessExpression($tokens);
+  my($arguments) = [ParseExpression($tokens)];
 
-  die("Return statement does not immediately follow expression with a line-ending semicolon")
-    unless(shift @$tokens eq 'SEMICOLON');
+  ExpectTokens
+  ( $tokens
+  , 'END_OF_LINE'
+  , 'Procedure call must terminate with an end of line'
+  );
 
-  { NodeType => 'ReturnStatement'
-  , Expression => $expression
+  { NodeType => 'System.exit'
+  , Arguments => $arguments
+  , Position => $statementPosition
   };
 }
 
-sub ProcessExpression
+sub ParseExpression
 { my($tokens) = shift;
 
-  my($initial) = shift @$tokens;
+  my($initial, $expressionPosition) = ExpectTokens
+  ( $tokens
+  , qr(^LITERAL_INTEGER$|^OPERATOR_UNARY_)
+  , ( 'Expression did not evaluate to either'
+    . ' an integer literal or a unary expression.'
+    )
+  );
   my($value, $type);
 
   if($initial eq 'LITERAL_INTEGER')
@@ -400,26 +472,24 @@ sub ProcessExpression
     $type = 'LiteralInteger';
   }
   elsif($initial =~ /^OPERATOR_UNARY_/)
-  { #$tokens = [$initial, @$tokens];
-    unshift @$tokens, $initial;
-    $value = ProcessUnaryExpression($tokens);
+  { unshift @$tokens, $initial;
+    $value = ParseUnaryExpression($tokens, $expressionPosition);
     $type = 'Unary';
   }
-  else
-  { die("Expression did not evaluate to either an integer literal or a unary expression.");
-  }
+  # We have guardrail to assume no other options are possible rn.
 
   { NodeType => 'Expression'
   , Value => $value
   , Type => $type
+  , Position => $expressionPosition
   };
 }
 
-sub ProcessUnaryExpression
+sub ParseUnaryExpression
 { my($tokens) = shift;
 
   my($operator) = shift @$tokens;
-  my($expression) = ProcessExpression($tokens);
+  my($expression) = ParseExpression($tokens);
 
   { NoteType => 'UnaryExpression'
   , Operator => $operator
@@ -427,42 +497,155 @@ sub ProcessUnaryExpression
   }
 }
 
-sub ProcessSkipEndOfLine
+sub ParseSkipEndOfLine
 { my($tokens) = shift;
+  ParsePossiblePosition($tokens);
   if($tokens->[0] eq 'END_OF_LINE')
   { shift @$tokens;
   }
 }
 
-sub ProcessPossiblePosition
+sub ParsePossiblePosition
 { my($tokens) = shift;
-  if($tokens->[0] eq 'POSITION')
+  if
+  ( ref($tokens) eq 'ARRAY'
+  &&defined $tokens->[0]
+  &&$tokens->[0] eq 'POSITION'
+  )
   { shift @$tokens;
     return shift @$tokens;
   }
   return undef; # Not at a position token, so no position returned.
 }
 
-sub ExpectToken
+sub PeekPosition
 { my($tokens) = shift;
-  my(@ret) = PeekToken($tokens, @_);
-  shift @$tokens;
+  
+  if($tokens->[0] ne 'POSITION')
+  { die
+    ( Dumper
+      ( [ 'Internal error: Expected "Position" token, none found at:'
+        , $tokens
+        ]
+      )
+    );
+  }
+  return $tokens->[1];
+}
+
+sub ExpectTokens
+{ my @args = @_;
+  my(@ret) = PeekTokens(@args);
+  my($foundTokens, $position) = @ret;
+  my($tokens) = shift @args;
+
+# CORE::say STDERR "ExpectTokens parsing found token list:". Dumper(\@ret);
+
+  if(ref($foundTokens) ne 'ARRAY')
+  { $foundTokens = [$foundTokens];
+  }
+  if(scalar(@$foundTokens)) # if this list is nonempty
+  { foreach my $token (@$foundTokens)
+    { my($compare);
+      do # Inspect and discard each token until one matches this returned token
+      { $compare = shift @$tokens;
+# CORE::say STDERR "ExpectTokens popping '$compare' to compare against '$token'";
+      } while($token ne $compare);
+    } # repeat that for the entire list of returned tokens.
+  }
   @ret;
 }
 
-sub PeekToken
-{ my($tokens) = shift;
-  my($expectedToken) = shift;
+sub PeekTokens
+{ 
+# CORE::say STDERR "Ran PeekTokens with: ". Dumper(\@_);
+  my($tokens) = shift;
+  my($expectedTokens) = shift;
   my($errorMessage) = shift;
-  my($position) = ProcessPossiblePosition($tokens);
-
+  my($position) = ParsePossiblePosition($tokens) || shift;
   my($foundToken) = $tokens->[0];
+  my($furtherExpectedTokens) = [];
+  my($expectedToken);
 
-  unless($foundToken =~ $expectedToken)
-  { Error($errorMessage, $position, $expectedToken, $foundToken);
+  if(ref($expectedTokens) eq 'ARRAY')
+  { 
+# CORE::say STDERR "expectedTokens is an array";
+
+    if(scalar(@$expectedTokens) < 1)
+    { 
+# CORE::say STDERR "PeekTokens bottoming out a recursive loop";
+      return(undef, $position);
+    }
+# CORE::say STDERR "expectedTokens does NOT look empty:". Dumper($expectedTokens);
+    $furtherExpectedTokens = [splice @$expectedTokens, 1];
+    $expectedToken = $expectedTokens->[0];
+#     my($unused);
+#     for my $expectedToken (@$expectedTokens)
+#     { # $foundToken will ultimately only record final token.
+# CORE::say Dumper splice @$tokens, 0, 4;
+# CORE::say "[$expectedToken, ";
+#       ($foundToken, $unused) =
+#         PeekTokens
+#         ( [splice @$tokens, 1]
+#         , $expectedToken
+#         , $errorMessage
+#         , $position
+#         );
+# CORE::say Dumper splice @$tokens, 0, 4;
+# CORE::say "$foundToken]";
+    # }
+    # Fall through to return at end of subroutine
   }
-  
-  $foundToken, $position; # return valid token
+  else # We assume $expectedTokens is either a String or a Regexp
+  { $expectedToken = $expectedTokens; # singularize variable name
+  }
+
+# CORE::say STDERR ("PeekTokens: expect $expectedToken, got $foundToken");
+
+    unless
+    ( ref($expectedToken) eq 'Regexp'
+    ? $foundToken =~ $expectedToken # Match a Regexp
+    : $foundToken eq $expectedToken # Equate a String
+    )
+    { Error($errorMessage, $position, $expectedToken, $foundToken);
+    }
+  # }
+
+# `[ splice @{[@$tokens]}, 1 ]` means:
+# dup $tokens, remove first element from copy,
+# and return the remaining arrayref.
+
+  my($q) =
+    PeekTokens
+    ( [ splice @{[@$tokens]}, 1 ]
+    , $furtherExpectedTokens
+    , $errorMessage
+    , $position
+    );
+
+# CORE::say STDERR
+# ( "About to leave PeekTokens, recurse got me: '"
+# . Dumper($q)
+# . "' which is "
+# . ( defined $q
+#   ? ( ref($q) eq 'ARRAY'
+#     ? 'An Array'
+#     : 'Not an Array, but defined nonetheless'
+#     )
+#   : 'undefined'
+#   )
+# . '. Also, $foundToken is \''
+# . Dumper($foundToken)
+# . '\'.'
+# );
+
+  ( defined $q
+  ? ( ref($q) eq 'ARRAY'
+    ? [ $foundToken, @$q ]
+    : [ $foundToken, $q ]
+    )
+  : $foundToken
+  ), $position;
 }
 
 sub Error
@@ -470,11 +653,14 @@ sub Error
   my($position) = shift;
   my($expectedToken) = shift;
   my($foundToken) = shift;
+  
+  CORE::say STDERR '';
   CORE::say STDERR $errorMessage;
-  CORE::say "Expected: $expectedToken" if(defined $expectedToken);
-  CORE::say "Found: $foundToken" if(defined $expectedToken);
-  CORE::say "At Line $position->{line}, Column $position->{column}"
+  CORE::say STDERR "Expected: $expectedToken" if(defined $expectedToken);
+  CORE::say STDERR "Found: $foundToken" if(defined $expectedToken);
+  CORE::say STDERR "At Line $position->{line}, Column $position->{column}"
     if(defined $position);
+  CORE::say STDERR '';
   exit 1;
 }
 
@@ -483,29 +669,50 @@ sub GenerateProgram
 
   my($onlyProcedure) = $ast->{OnlyProcedure};
 
-  my($ret) = GenerateProcedureGlobal($onlyProcedure);
-  $ret .= GenerateProcedureBody($onlyProcedure);
+  my($ret) = GenerateProcedureGlobal($onlyProcedure->{ProcedureName});
+  $ret .= GenerateProcedureBody($onlyProcedure->{ProcedureBody});
   $ret;
 }
 
 sub GenerateProcedureGlobal
-{ my($ast) = shift;
+{ my($procedureName) = shift;
 
-  "\t.globl\t". $ast->{ProcedureName} ."\n";
+  "\t.globl\t". $procedureName ."\n";
 }
 
 sub GenerateProcedureBody
 { my($ast) = shift;
 
   my($ret) = $ast->{ProcedureName} .":\n";
-  $ret .= GenerateReturnStatement($ast->{OnlyStatement});
+
+  # Assumption: Only one statement, that is a System.exit statement.
+  Error
+  ( "Compiler can only handle exactly one statement"
+  , $ast->{Position}
+  ) unless(scalar(@{$ast->{Statements}}) == 1);
+
+  my($statement) = $ast->{Statements}[0];
+
+  # Assumption: the singleton statement is System.exit
+  Error
+  ( "Compiler can only generate the System.exit statement"
+  , $statement->{Position}
+  ) unless(scalar($statement->{NodeType}) eq 'System.exit');
+
+  $ret .= GenerateSystemExit($statement);
   $ret;
 }
 
-sub GenerateReturnStatement
+sub GenerateSystemExit
 { my($ast) = shift;
 
-  my($ret) = GenerateExpression($ast->{Expression});
+  # Assumption: Only one argument
+  Error
+  ( "System.exit statment can only have exactly one argument"
+  , $ast->{Position}
+  ) unless(@{$ast->{Arguments}} == 1);
+
+  my($ret) = GenerateExpression($ast->{Arguments}[0]);
   $ret .= "\tret\n";
 }
 
@@ -527,26 +734,36 @@ sub GenerateUnaryExpression
 { my($ast) = shift;
   my($ret) = GenerateExpression($ast->{Expression});
   
-
   if($ast->{Operator} eq 'OPERATOR_UNARY_COMLPEMENT_ADDITIVE')
   { $ret .= "\tneg\t%rax\n";
   }
   elsif($ast->{Operator} eq 'OPERATOR_UNARY_COMPLEMENT_BITWISE')
   { $ret .= "\tnot\t%rax\n";
   }
-  elsif($ast->{Operator} eq 'OPERATOR_UNARY_COMPLEMENT_BOOLEAN')
-  { $ret .= <<"EOL";
-\tcmp\t\$0, %rax
-\tmov\t\$0, %rax
-\tsete\t%al
-EOL
-  }
+#   elsif($ast->{Operator} eq 'OPERATOR_UNARY_COMPLEMENT_BOOLEAN')
+#   { $ret .= <<"EOL";
+# \tcmp\t\$0, %rax
+# \tmov\t\$0, %rax
+# \tsete\t%al
+# EOL
+#   }
   else
   { die("Failed sanity check: unknown type of unary expression.\n". Dumper($ast));
   }
 
   $ret;
 }
+
+sub Plural
+{ my($number) = shift;
+  my($singular) = shift;
+  my($plural) = shift || "${singular}s";
+
+  $number==1?"$number $singular":"$number $plural";
+}
+
+sub trim { $_[0] =~ s/^\s+|\s+$//g; return $_[0]; };
+
 
 my($position) =
 { line => 1 # 1-based counting
@@ -558,10 +775,10 @@ while(my $line = <>)
 { push(@$lexxed, @{lex($line, $position)});
 }
 
-CORE::say STDERR Dumper($lexxed);
+# CORE::say STDERR Dumper($lexxed);
 
-my($ast) = ProcessProgram($lexxed);
+my($ast) = ParseProgram($lexxed);
 
-CORE::say STDERR Dumper($ast);
+# CORE::say STDERR Dumper($ast);
 
-# CORE::say GenerateProgram($ast);
+CORE::say GenerateProgram($ast);

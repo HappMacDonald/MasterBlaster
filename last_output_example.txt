@@ -1,0 +1,5 @@
+	.globl	qmain
+qmain:
+	mov	$69, %rax
+	ret
+
