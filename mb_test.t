@@ -230,11 +230,32 @@ is
 , 'PeekTokens fail test: [a, b] vs [a, c] internal position 2'
 );
 
-die("Next I've got to test ExpectTokens");
+TODO: { local $TODO = "Stubbed out tests for ExpectTokens"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for PeekPosition"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for ParseSkipEndOfLine"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for ParseUnaryExpression"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for ParseExpression"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for ParseStatement"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for ParseProcedureBody"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for ParseArgumentTypes"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for ParseTypeAnnotation"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for ParseProcedure"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for ParseProgram"; ok 1; }
+
+
 
 
 #######################
 ##  mb_generator.pl  ##
 #######################
+TODO: { local $TODO = "Stubbed out tests for GenerateUnaryExpression"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for GenerateExpression"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for GenerateSystemExit"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for GenerateProcedureBody"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for GenerateProcedureGlobal"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for GenerateProgram"; ok 1; }
+
+
+
 
 done_testing();
