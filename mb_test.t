@@ -183,9 +183,54 @@ is_deeply
 , 'PeekTokens: j3 (middle), [qw(c d e)], $position'
 ) || diag Dumper $junk;
 
-die("Now I have to use Test::Trap to test PeekTokens borking");
+trap { PeekTokens([qw(a b)], 'b', 'Error Message') };
+is
+($trap->stderr
+, "\nError Message\nExpected: b\nFound: a\n\n"
+, 'PeekTokens fail test: [a, b] vs b'
+);
 
+trap { PeekTokens([qw(a b)], [qw(a c)], 'Error Message') };
+is
+($trap->stderr
+, "\nError Message\nExpected: c\nFound: b\n\n"
+, 'PeekTokens fail test: [a, b] vs [a, c]'
+);
 
+trap { PeekTokens([qw(a b)], [qw(a c)], 'Error Message', $position) };
+is
+($trap->stderr
+, "\nError Message\nExpected: c\nFound: b\nAt Line 1, Column 2\n\n"
+, 'PeekTokens fail test: [a, b] vs [a, c] with caller-supplied position'
+);
+
+trap
+{ PeekTokens
+  ( ['POSITION', $position, qw(a b)]
+  , [qw(a c)]
+  , 'Error Message'
+  )
+};
+is
+($trap->stderr
+, "\nError Message\nExpected: c\nFound: b\nAt Line 1, Column 2\n\n"
+, 'PeekTokens fail test: [a, b] vs [a, c] internal position 1'
+);
+
+trap
+{ PeekTokens
+  ( ['a', 'POSITION', $position, 'b']
+  , [qw(a c)]
+  , 'Error Message'
+  )
+};
+is
+($trap->stderr
+, "\nError Message\nExpected: c\nFound: b\nAt Line 1, Column 2\n\n"
+, 'PeekTokens fail test: [a, b] vs [a, c] internal position 2'
+);
+
+die("Next I've got to test ExpectTokens");
 
 
 #######################
