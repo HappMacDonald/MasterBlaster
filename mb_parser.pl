@@ -222,8 +222,15 @@ sub ParseProcedureBody
 
   ExpectTokens
   ( $tokens
+  , ['IDENTIFIER_NOCAPS', qr(^_\w*)]
+  , "Procedure `$procedureName` not followed by single argument."
+  );
+
+
+  ExpectTokens
+  ( $tokens
   , 'EQUALS'
-  , ( "Procedure Name '$procedureName' not followed by"
+  , ( "Procedure Name `$procedureName` and single argument not followed by"
     . " an equals sign in Procedure body."
     )
   );

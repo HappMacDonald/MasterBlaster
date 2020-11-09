@@ -1,5 +1,19 @@
 #!/usr/bin/perl -C63
 
+die(<<'EOL'
+Status:
+1. Trying to figure out where to enforce what `main`'s type annotation must be
+2. Also trying to figure out how to enforce function type annotations vs
+number of arguments listed
+3. Once all of that's done, then I want to figure out how to both define
+and enforce upon callers the type annotations for builtin functions
+such as System.exit.
+Maybe treat them like user-defined functions with the exception that
+they have dedicated Generate routines?
+Should also go through the import rigamarole.
+EOL
+);
+
 use strict;
 use warnings;
 use utf8;

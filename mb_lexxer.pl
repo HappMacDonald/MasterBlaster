@@ -98,7 +98,7 @@ my $TOKENS =
     }
   , IDENTIFIER_NOCAPS =>
     { argumentCount => 1
-    , pattern => qr(([a-z]\w*))
+    , pattern => qr(([a-z_]\w*))
     }
   , LITERAL_INTEGER =>
     { argumentCount => 'named'
@@ -200,6 +200,7 @@ sub lex
     if($input eq $inputClone)
     { trim($input);
       trim($fullLine);
+die(Dumper($output));
       Error
       ( ( "Unrecognized token: $input"
         . "\nIn full line: $fullLine"

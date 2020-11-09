@@ -1,5 +1,5 @@
-main : List String -> Procedure
-main =
+main : List String -> List Unsigned8BitInteger -> Procedure
+main _q =
   Procedure.begin
-    System.exit 5
+    System.exit -5
   Procedure.end
