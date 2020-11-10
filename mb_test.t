@@ -27,11 +27,18 @@ my $position = {line=>1,column=>2};
 ####################
 ##  mb_common.pl  ##
 ####################
+trap { Error(); };
+is($trap->stderr, "\nUnspecified error\n\n", 'No error message given');
+
 trap { Error('msg'); };
 is($trap->stderr, "\nmsg\n\n", 'Just an error message');
 
 trap { Error('msg', $position); };
-is($trap->stderr, "\nmsg\nAt Line 1, Column 2\n\n", 'Error message with position');
+is
+( $trap->stderr
+, "\nmsg\nAt Line 1, Column 2\n\n"
+, 'Error message with position'
+);
 
 trap { Error('msg', $position, 'a', 'b'); };
 is($trap->stderr, "\nmsg\nExpected: a\nFound: b\nAt Line 1, Column 2\n\n", 'Error message with position, expected, and found');
@@ -73,6 +80,8 @@ is_deeply
 , 'slice: [qw(a b c d)], 1, 2, ["q"]'
 ) || diag Dumper($junk);
 
+TODO: { local $TODO = "Stubbed out tests for Assert"; ok 1; }
+TODO: { local $TODO = "Stubbed out tests for AssertEqual"; ok 1; }
 
 
 ####################
@@ -242,7 +251,56 @@ TODO: { local $TODO = "Stubbed out tests for ParseTypeAnnotation"; ok 1; }
 TODO: { local $TODO = "Stubbed out tests for ParseProcedure"; ok 1; }
 TODO: { local $TODO = "Stubbed out tests for ParseProgram"; ok 1; }
 
+is_deeply
+( ParseCountTypeAnnotation
+  ( { 'NodeType' => 'TypeAnnotation'
+    , 'ArgumentTypes' =>
+      { 'NodeType' => 'ArgumentTypes'
+      , 'NextArgument' =>
+        { 'NodeType' => 'ArgumentTypes'
+        , 'NextArgument' =>
+          { 'NodeType' => 'ArgumentTypes'
+          }
+        }
+      }
+    }
+  )
+, 3
+, 'type annotation correct count'
+);
 
+trap { ParseCountTypeAnnotation(); };
+is
+( $trap->stderr
+, "\nExpected a Type Annotation.\nExpected: TypeAnnotation\nFound: \n\n"
+, 'ParseCountTypeAnnotation, no arguments.'
+);
+
+trap { ParseCountTypeAnnotation({NodeType=>'TypeAnnotation'}); };
+is
+( $trap->stderr
+, ( "\nType annotation appears to lack any argument types."
+  . "\n\n"
+  )
+, 'ParseCountTypeAnnotation, no TA but present position.'
+);
+
+trap
+{ ParseCountTypeAnnotation
+  ( { NodeType=>'TypeAnnotation'
+    , 'ArgumentTypes' => {}
+    }
+  );
+};
+is
+( $trap->stderr
+, ( "\nExpected a type annotation argument type."
+  . "\nExpected: ArgumentTypes"
+  . "\nFound: "
+  . "\n\n"
+  )
+, 'ParseCountTypeAnnotation, no TA but present position.'
+);
 
 
 #######################

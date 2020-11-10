@@ -1,5 +1,6 @@
 #!/usr/bin/perl -C63
 
+=pod
 die(<<'EOL'
 Status:
 1. Trying to figure out where to enforce what `main`'s type annotation must be
@@ -13,6 +14,7 @@ they have dedicated Generate routines?
 Should also go through the import rigamarole.
 EOL
 );
+=cut
 
 use strict;
 use warnings;
@@ -48,6 +50,6 @@ while(my $line = <>)
 
 my($ast) = ParseProgram($lexxed);
 
-# CORE::say STDERR Dumper($ast);
+CORE::say STDERR Dumper($ast);
 
 CORE::say GenerateProgram($ast);

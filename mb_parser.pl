@@ -511,5 +511,56 @@ sub ParsePossiblePosition
   return undef; # Not at a position token, so no position returned.
 }
 
+sub ParseCountTypeAnnotation
+{ my $typeAnnotation = shift || {};
+  my $argumentType = shift || FALSE;
+  my $position = $typeAnnotation->{position} || shift;
+
+  if($argumentType)
+  { AssertEqual
+    ( $typeAnnotation->{NodeType} || ''
+    , 'ArgumentTypes'
+    , 'Expected a type annotation argument type.'
+    , $position
+    );
+    if($typeAnnotation->{NextArgument})
+    { my $q =
+      ( 1
+      + ParseCountTypeAnnotation
+        ( $typeAnnotation->{NextArgument}
+        , 1
+        , $position
+        )
+      );
+      return $q;
+    }
+    else # To get this far to begin with $argumentType MUST be true
+    { return 1; # no subtypes means this type represetns only one argument.
+    }
+  }
+  else
+  { AssertEqual
+    ( $typeAnnotation->{NodeType} || ''
+    , 'TypeAnnotation'
+    , 'Expected a Type Annotation.'
+    , $position
+    );
+
+    Assert
+    ( $typeAnnotation->{ArgumentTypes}
+    , 'Type annotation appears to lack any argument types.'
+    , $position
+    );
+
+    return
+    ( ParseCountTypeAnnotation
+      ( $typeAnnotation->{ArgumentTypes}
+      , 1
+      , $position
+      )
+    );
+  }
+}
+
 
 1;

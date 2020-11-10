@@ -15,7 +15,7 @@ use List::Util qw(min max);
 use POSIX qw(floor ceil round);
 
 sub Error
-{ my($errorMessage) = shift;
+{ my($errorMessage) = shift || 'Unspecified error';
   my($position) = shift;
   my($expectedToken) = shift;
   my($foundToken) = shift;
@@ -28,6 +28,29 @@ sub Error
     if(defined $position);
   CORE::say STDERR '';
   exit 1;
+}
+
+sub Assert
+{ my $test = shift;
+  
+  if(!$test)
+  { Error @_;
+  }
+}
+
+sub AssertEqual
+{ my($foundToken) = shift;
+  my($expectedToken) = shift;
+  my($errorMessage) = shift;
+  my($position) = shift;
+
+  Assert
+  ( $expectedToken eq $foundToken
+  , $errorMessage
+  , $position
+  , $expectedToken
+  , $foundToken
+  );
 }
 
 sub Plural
