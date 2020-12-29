@@ -1,14 +1,10 @@
-== Language naming:
-* Must do the renaming process now.
-* Name is MasterBlaster (no space or hyphen).
-
 == My refined mission statement for MasterBlaster
 In descending order of implementational priority:
 * Compiles down to Elf64 assembly
 * Strongly functional: abusively wring all business logic out of the parts of the code that handle side effects (Procedures), and then force said logic into pure functions (Lambdas).
 * YAGNI: Language is both strict and minimal in order to encourage making impossible or undesirable states unrepresentable.
-* Less punctuation than Elm
 * Compiler gives gratuitously friendly error messages 
+* Less punctuation than Elm
 * Maybe one day can cross-compile to other platforms? What do I care. xD
 
 == My original Mission Statement post:
@@ -50,11 +46,11 @@ Now I wish to bend development towards MasterBlaster syntax.
 *** I am at the very least delaying this goal. I will limit Tuple's to word constructor though.
 ** Will need periods in method names, like `List.new`.
 ** Obviously also decimal punctuations. - preceeding a negative number, scientific notation, various common base notations, etc.
-** String literal puncituation. I'll accept only apostrophes for single-line literal strings. I will leave double quotes and backticks reserved for future considerations.
-** Unlike Elm I think I *would* like to handle template interpolation (like java backticks et al), eventually. Implementational details to be decided.
+** String literal punctuation. I'll accept only apostrophes for single-line literal strings. I will leave double quotes and backticks reserved for future considerations.
+** Unlike Elm I think I *would* like to handle template interpolation (like javascript backticks et al), eventually. Implementational details to be decided.
 ** I might prefer SET/Set keyword or similar over assignment.
 ** I will probably handle arithmetic and math/logic/boolean/bitwise operators via method invocation as well.
-** Primordial function will be a first class lamda named "main". Define it wherever you like, it will be a compiler error for the root of an application to not have one defined.
+** Primordial function will be a first class procedure named "main". Define it wherever you like, it will be a compiler error for the root of an application to not have one defined.
 ** For now will accept list of argv, and probably require (my syntactic equivilent of) _ pattern matching until I can even support lists.
 ** argv.0 (I'll try to support indexing through integer literal methods maybe?) will be the application name, argv.1 and beyond the POSIX arguments.
 
@@ -84,17 +80,16 @@ Now I wish to bend development towards MasterBlaster syntax.
 *** And then compiler will both chide you and try to derive the type annotation for you simultaneously. So especially lazy devs can place-holder everything up, and then have some utility fill those in if they choose.
 *** Annotation only required on assignment.. but that includes record field assignment.
 
-** BUT! .. how am I meant to do this with anonymous functions then? Especially when, for example, anon function gets fed directly as an argumetn into another function, or any other alternative to a direct variable setting/binding?
+** BUT! .. how am I meant to do this with anonymous functions then? Especially when, for example, anon function gets fed directly as an argument into another function, or any other alternative to a direct variable setting/binding?
 *** Also, this fanatacism would require setting up type annotations at the *caller return* of every function, wouldn't it?
 *** One idea to consider (not yet sold on, just thought of and also haven't yet been sold against..) type annotation only required at variable bind/set.
 
 ** How will I handle I/O and side effects?
 *** Elm uses Tea, and kind of abstracts things away beneath their "main" function into core packages.
 *** I probably want to do something A LITTLE bit like Haskel, where I have a class of functions that are side effectful, and tainted, and probably live between invocation land and pure function land somehow.
-*** I haven't yet decided how I intend to weave that into my `main ([List]argv) = return [Integer]x` primordial lambda, either.
+*** I haven't yet decided how I intend to weave that into my `main ([List]argv) = return [Integer]x` primordial procedure, either.
 *** Maybe I want to go so far as to *call* a subroutine that deals in side effects some name that is not "function", so that the only things called "function" in my language are the pure ones?
-*** That said, "subroutine" is alright but I should come up with a more compelling non-function name if at all possible.
-*** NEW THOUGHT: I can call those "effectors".
+*** Naming decided: Procedure vs Lambda
 
 ** Do I want any "tuple" type, or do I want to encapsulate that completely in a kind of function instead? Probably the latter.. I think tuple in Elm and elsewhere is just another function-datatype that has extra sugar.
 *** So, I'll have to further research Marie Kondo'ing that sugar.
@@ -103,13 +98,13 @@ Now I wish to bend development towards MasterBlaster syntax.
 *** And either period and/or :: for method namespaces.. I cannot decide which to either allow or require.
 *** Can I make an imported module namespace be a "function" somehow, so that . == |> becomes a conceptually valid thing to do to it?
 
-** About effectors:
+** About procedures:
 *** Perhaps they can be encapsulated as first class data elements, just as functions are, and then those can be passed into functions as arguments?
 *** !!! BUT !!! functions would not be able to invoke them. Only to shuffle them around as symbols.
-*** This could allow functions to enforce flow control, even sequentiality, by returning lists of "perform these effectors in this order".
-*** In any event, I want to somehow drain 110% of decision making out of the effectors.
+*** This could allow functions to enforce flow control, even sequentiality, by returning lists of "perform these procedures in this order".
+*** In any event, I want to somehow drain 110% of decision making out of the procedures.
 *** Current inclination is that, unlike Haskell, I will not use monadic side effects.
-*** Instead, I will simply build the compiler to treat effectors differently from functions, and not for example assume that they can be optimized the same way at all.
+*** Instead, I will simply build the compiler to treat procedures differently from functions, and not for example assume that they can be optimized the same way at all.
 
 
 ------------
