@@ -1,3 +1,71 @@
+== Reminder to self of GASP alternatives, in order of decreasing laziness:
+* copy the macro inline by hand and then debug that.
+* dissassemble using objdump back into source and then debug that.
+
+== CPUID features I intend to demand at minimum to run a MasterBlaster executable (at least to begin with):
+* MOVBE SSE4_2 .. and I think that's it *shrugs*. I'd love POPCNT but so far I can't get Roma to support it in VBOX on Tolana, despite Tolana supporting it.
+
+== Cheat sheet for the System V x64 ABI used by linux:
+* Who owns which registers? (here parent=callER and child=callEE)
+** r0 = rax : owned by CHILD & Lowest 64 bits of integer return value & for variadic functions, AL must pass in upper bound of total number of float arguments, 0-8.
+** r1 = rcx : owned by CHILD & Integer Argument 4 ....i
+** r2 = rdx : owned by CHILD & Integer Argument 3 ...i & highest 64 bits of integer return value, if applicable.
+** r3 = rbx : owned by PARENT
+** r4 = rsp : owned by PARENT (points to bottom of your stack frame, so revert to parent's frame by return.)
+** r5 = rbp : owned by PARENT (points to top of your stack frame, so revert to parent's frame by return.)
+** r6 = rsi : owned by CHILD & Integer Argument 2 ..i
+** r7 = rdi : owned by CHILD & Integer Argument 1 .i
+** r8       : owned by CHILD & Integer Argument 5 .....i
+** r9       : owned by CHILD & Integer Argument 6 ......i
+** r10      : owned by CHILD & Static Chain Pointer for nested functions. (what's that though? ;P)
+** r11      : owned by CHILD
+** r12      : owned by PARENT
+** r13      : owned by PARENT
+** r14      : owned by PARENT
+** r15      : owned by PARENT & optionally used as GOT base pointer. (great, but wth is that? xD)
+** *MM0     : owned by CHILD & Floating Point Argument 1 .f & Floating Point Return Value
+** *MM1     : owned by CHILD & Floating Point Argument 2 ..f
+** *MM2     : owned by CHILD & Floating Point Argument 3 ...f
+** *MM3     : owned by CHILD & Floating Point Argument 4 ....f
+** *MM4     : owned by CHILD & Floating Point Argument 5 .....f
+** *MM5     : owned by CHILD & Floating Point Argument 6 ......f
+** *MM6     : owned by CHILD & Floating Point Argument 7 .......f
+** *MM7     : owned by CHILD & Floating Point Argument 8 ........f
+** *MM8-32  : owned by CHILD
+** k0-k7 amx masks : owned by CHILD
+
+* (Not important to me): The CPU shall be in x87 mode upon entry to a function. EG, MMX should be switched off.
+* The first six integer or pointer arguments are passed in registers RDI, RSI, RDX, RCX, R8, R9
+** R10 is used as a static chain pointer in case of nested functions[25]:21
+** XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6 and XMM7 are used for the first floating point arguments
+** additional arguments are passed on the stack; earliest arguments on the bottom of the stalactite stack frame.
+** Integer return values up to 64 bits in size are stored in RAX while values up to 128 bit are stored in RAX and RDX.
+** Floating-point return values are similarly stored in XMM0 and XMM1.
+*** The wider YMM and ZMM registers are used for passing and returning wider values in place of XMM when they exist.
+*** I do not grok what they mean by "wider than 64 bit float return values" so I'm ignoring that possibility for now. ;P 2021-03-05T03:07-08:00
+* For leaf-node functions, a 128-byte space is stored just beneath the stack pointer of the function called the Red Zone.
+** This zone will not be clobbered by any signal or interrupt handlers.
+** Compilers can thus utilize this zone to save local variables.
+** Compilers may omit some instructions at the starting of the function (adjustment of RSP, RBP) by utilizing this zone.
+** However, other functions may clobber this zone. Therefore, this zone should only be used for leaf-node functions.
+*** I think non-leaf functions could use this zone as a trash-pad between function calls as well. Esp in leaf-macros. *shrugs?*
+* If the callee is a variadic function, then the number of floating point arguments passed to the function in vector registers must be provided by the caller in the AL register
+
+== Illustration of the System V x64 ABI stack frames during a function call:
+  Position  |           Contents          | Frame
+------------+-----------------------------+-----------
+8n+16(%rbp) | memory argument eightbyte n |
+    . . .   |            . . .            | Previous
+   16(%rbp) | memory argument eightbyte 0 |
+------------+-----------------------------+-----------
+    8(%rbp) |_______return_address________|
+    0(%rbp) |_____previous_%rbp_value_____|
+   -8(%rbp) |         unspecified         | Current
+            |            . . .            |
+    0(%rsp) |________variable_size________|
+ -128(%rsp) |          red zone           |
+
+
 == My refined mission statement for MasterBlaster
 In descending order of implementational priority:
 * Compiles down to Elf64 assembly
@@ -35,7 +103,8 @@ gcc -S -O3 -fno-asynchronous-unwind-tables 01_return2.c
 
 == Compile an s file:
 (nasm syntax, not currently being used) nasm -f elf64 -o program.c program.s
-(gcc syntax) gcc -m64 program.s program.elf
+(gcc syntax, no debug) gcc -nostartfiles -s -nostdlib -m64 !!!FILENAME!!!.s -o !!!FILENAME!!!.elf64 && chmod 700 !!!FILENAME!!!.elf64 && ( ./!!!FILENAME!!!.elf64 ; echo $? )
+(gcc syntax, with debug) gcc -nostartfiles -nostdlib -g -gdwarf-4 -g3 -m64 !!!FILENAME!!!.s -o !!!FILENAME!!!.elf64 && chmod 700 !!!FILENAME!!!.elf64 && ( ./!!!FILENAME!!!.elf64 ; echo $? )
 
 Now I wish to bend development towards MasterBlaster syntax.
 
@@ -132,3 +201,51 @@ Now I wish to bend development towards MasterBlaster syntax.
 * 1000000000 = 40->64
 * 4294967295 = 40->64
 * 4294967296 = 
+
+-------------
+== I'm actually beginning to doubt some of the strategies listed below. Because:
+* Constant literals are largely going to be in the .data section. That's not a chunk, so how would they be addressed?
+* How many items will really require how much metadata when the compiler can boil most metadata such as static types (and thus memory extents) directly into the executable code. Not to mention automatically inlining a ton of different kinds of constants.
+== that said, previous best suggestion:
+* Proposed scoping and garbage collections strategy:
+** app will on boot allocate a large chunk of RAM, which we will call a "Chunk" in compilation context officially. Default size of a Chunk is currently 10MB, but configurable at compile time. For example, folk can try to tune this to match RAM cache sizes.
+** Some threaded code may run faster by specifying a smaller chunk size and then limiting different microthreads to maintaining their own chunks that other microthreads would never interact with, thus requiring next to no mutex interaction, and then keeping chunk size small prevents memory bloat when potentially large numbers of microthreads are handling potentially small amounts of RAM apiece. See later notes below for an alternate strategy though.
+** All object allocation will be handled inside these chunks instead of relying directly on the OS heap which may save on kernel switching, AND all proper data objects will live in these chunks to keep the OS stack from being cluttered.
+** Chunk allocation table grows backwards from the end of its alloted space.
+*** @-4 Unsigned32BitInteger total number of allocated objects
+*** @-8 Unsigned32BitInteger Type of object #0. Type 0 means "available for reuse". Types < 256 have hard-coded meanings, >255 are user-defined types and index into a types table .. somewhere on chunk #0 (eg, primordial chunk). I haven't designed enough language to support user-defined types yet anyway, I'm still working on scopes of any kind as of this writing lel.
+**** This Unsigned32BitInteger makes the design decision that users will not be allowed to dream up more than four billion user-defined types in a single application. Since MasterBlaster defines literally all types at compiler time, this sounds utterly fair to me.
+*** @-16 Unsigned32BitInteger + Pointer32 size and location inside this chunk of raw data content for object #0. If size is zero, then pointer content is literally undefined (eg not even written thus contains garbage). Root object 0:0 is one example of an object that has zero content size.
+*** @-32 Unsigned32BitInteger + Pointer32 size and location inside this chunk of metadata  for object #0. Size cannot be zero, as every object has either children or parents to declare at minimum. Even Root object has children, even allocated atomic data types have parents. Local atomic data types get to live directly inside the content of their parent scope objects (which are functionally static dictionaries), and thus do not even appear in the chunk allocation table on their own.
+*** repeat for more allocated objects
+** Calling a function, such as via a library, will bequeath access to the caller's Chunk (and potentially a list of all of the caller's chunks) onto the callee isntead of allocating a new one, obv. So it is App entry that allocates initial Chunk, not dynamic library calling.
+** Once a Chunk is exhausted, another one of the same size will need to be allocated.
+** If App is confident that it's most important data will fit in one chunk, and it additionally needs to handle a bunch of bulk data, compiler should dedicate primordial chunk to the former, early-allocate additional chunks for all of the latter, and rarely specify bulk chunks as Current Working Chunk during calls.. the rare exception being any function that honestly does all it's work from the bulk chunk and lacks interest in parent scopes entirely.
+** App must allocate and manage its own chunks, and the primary scope of deligation here is to microthreads who *in some specialized circumstances* might allocate and manage their own chunks per microthread. Outside of such specialized circumstances, microthreads will share chunks and mutex all in-chunk allocation via some handler in the parent app.
+** Another possibility is that microthreads can be handed "sub-chunks", that the microthreads honestly believe ARE chunks. For this to work App would need some way to ensure microthreads are brainwashed to some artificially small chunk size at compile time. How to do that remains TBD.
+** App and/or microthreads will index into a "list of chunks" which is just a list of global memory addresses (Pointer64) for a bunch of linearly indexed chunks. Microthreads are free to manage their own lists. These lists would also exist within chunks, and whoever handles them gets to customize their convention.
+** Operations can address allocated data objects globally via chunk index (Unsigned32BitInteger) plus interior chunk index (Unsigned32BitInteger), which involves getting global address from chunk list lookup table, and finding global location of data object content or metadata by indexing into the chunk allocation table of that chunk.
+** Alternately, operations can (and many core ones will always) address data more locally by presuming r15 is the global address of the Current Working Chunk, and only addressing the data object by interior chunk index from there.
+** Bear in mind that not all data is allocated. Quite a lot is static local to a larger object: such as array indices, dictionary leaves, and scope locals which in a sense are also dictionary leaves. That means that chunk dereferencing only gives you allocated data objects, and another type-specific form of dereferencing may be required to render "parts" of said data objects.
+** Over very short periods within a single scope, global pointers to data contents and parts may be held and cached with context implied type and handling. Mostly in register, but as infrequently as possible to RAM. Allocators and Garbage collector abstractions might do the same with data object metadata, but ordinary code ought never need to. Especially early on in language dev due to immutable data guarantees.
+** Primary OS stack will exclusively hold caller address, and then chunk index/interior chunk index of the caller's Scope object. Thus any function can determine scope fairly quickly by reading up the stack and then laterally through the chunk(s) in question.
+** I might create a fake "top application frame" to clarify to callees where to stop looking for more scopes, though. I might also do the same within some microthreads.
+** Callee will confidently assume that the Current Working Chunk caller gave it on r15 is identical to the chunk indexed on Caller's stack frame. Thus it can optionally skip indexing into the chunk table to inspect the scope of both its caller, and if it temporarily caches that index for comparison it can do the same on every higher stack frame with matching index.
+** I'll make the engineering decision that Chunks can survive maximum size of 4GB, and thus we can freely use 32 bit pointer/offsets within any single chunk. Remember kids, this isn't a memory ceiling just a ceiling to how large of bites we take out of memory at a time. Also any object that needs more than 4GB of RAM can probably survive a degree of memory fragmentation and abstract/stream representation. Especially along addressing bit-boundaries. For default 10MB chunks, 23-bit boundaries are an option. Before long >16MB caches will be commonly available and thus >16MB chunks and 24 bit boundaries will be convenient without performance sacrifice.
+** Not relying on full global memory pointers very frequently will offer some space and time savings, as we can index into any single chunk with 32 bits maximum guaranteed, and then use another Unsigned32BitInteger to indicate which chunk we are referring to by indexing into a chunk table.
+** I'll assign the 64 bit global memory address of the "current working chunk" to r15 (I think, assuming that is one of the caller-owned registers). Any code can access any chunk transparently (although per-microthread chunk housekeeping might nerf that in practice), but many standard operations will presume "current working chunk" as default and pass around either in-chunk indices or in-chunk memory offsets to get things done.. and this includes my internal procedure/lambda calling conventions.
+** There will be a Root data object, and all allocation cascades from it. At the moment Root data object has no purpose in life other than to be where the allocation and garbage collection buck stops. This object will be encoded as 0:0 or the first data object on the primordial application chunk. It has metadata naming children but no content.
+** Every scope is a data object that lives in a chunk, that functionally acts as a static dictionary. Each leaf is a static local constant that may either act as or contain a pointer (Usually local 32 bit index into the current chunk, but optionally global chunk index + interior chunk index) or else simply be a constant atomic data type. Anything that requires variable memory requirements (such as ownership over data objects that cross scopes or handles to resources not managed by MasterBlaster, possibly down the road even compiler-blessed mutability optimizations) should wind up being an allocated data object in order to more cleanly support changes to metadata or more rare changes to content or type.
+** In order to facilitate garbage collection, every dynamically allocated object should have zero or more parents and zero or more dynamically allocated children. Only Root and objects in the midst of active self-destruction may have zero parents. One or more indicate that multiple scopes have vested interest in the object. These relationships form a doubly connected graph, where every parent has links naming its children and every child has links naming its parents. The compiler is responsible for arranging to ensure that those links always match. For the purposes of allocation tracking, collections of parents and collections of children have no ordering.
+** All "user"-allocated data objects watershed their ancestory to at minimum the scope of the highest parent object that the "user" began allocating from. Scope objects parent either directly to the Root object, or via other scopes to the Root object. Which of these is TBD and rely on how I will eventually decide that closures work. "User" above is in quotes because those decisions are really made by the compiler, but from this part of the algorithm's perspective such decisions are just as capricious as if some human coder actually made those decisions.
+** Scope objects delink from their calling parent (parent scope or root object) as their OS stack reference is popped. "user" allocations delink from their parent when the "user" manually releases them. Other kinds of delinking happen in a cascade during garbage collection.
+** When a delinking begins, the following recursive algorithm is followed by the object being delinked from its parent, regardless which object was used to initiate the action. Let's call this child object E and the parent delinking from it P.
+*** Looking for root: First iterate over each remaining parent.
+**** For each parent, iterate "Looking for root" over its parents depth-first, and keep a set of "objects seen thus far" starting with oneself.
+**** Any parent one wants to consider must be compared against this set, and skipped if match is found.
+**** Any parent one does begin to consider gets added to the set while considering its own ancestry.
+**** If any parent finds Root, then the search instantly ends and we skip instantly to erasing the P->E link. First P child link is erased, then E parent link to P. Because we know that E has alternate ancestry to root, no further action is required and the delink operation is complete.
+**** If all ancestory of E (save P) has been exhausted with no connection to root, then E will erase the P->E link. First P child link is erased, then E parent link to P. Finally E will begin the self-destruction process.
+**** E will ignore its remaining parents and assume those must link back to its children.
+**** E will next unlink each of its children in turn, which recurses this entire algorithm. Descendants with alternate ancestories to root will survive now unlinked from their ancestory to E, while those without will also begin self-destructing. We must assume that all of E's remaining parents are in the last camp since they also had no ancestory of their own to Root.
+**** Once E has cut all ties to its children, and to P, and assumes all other parental ties have been cut by its looped children, E can finally deallocate from the chunk table, and return to whatever calling process began the delinking.
