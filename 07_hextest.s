@@ -54,10 +54,13 @@ putsMessage\@:
 putsEnd\@:
 .endm
 
-
+# Accepts arg1(%rdi)=number to convert to hex string, and arg2(%rsi)=16 byte buffer space.
+# Returns ret1(%rax)=pointer to inside of buffer where RIGHT-ALIGNED answer sits,
+# and ret2(%rdx)=total length of the answer string. That is not null-terminated.
 unsignedIntegerToString:
-  # copy argument two (buffer location) to return register.
-  # return register will represent start of buffer, arg2 represent end FTTB.
+  addq $0x10, %rsi # skip arg2 to end of buffer
+  # copy arg2 to ret1, which will track the left side of answer.
+  # arg2 will stay at the right side of answer.
   movq %rsi, %rax
 .loop:
   movq %rdi, %rdx # copy arg1 (number to cast) into arg3
@@ -70,47 +73,35 @@ unsignedIntegerToString:
   # , put into arg5(LSB)
   # )
   movb (%rcx,%rdx,1), %r8b
-  movb %r8b, (%rsi) # .. then put it into current end of buffer.
-  inc %rsi # March end of buffer forward by one byte.
+  movb %r8b, (%rax) # .. then put it into current end of buffer.
+  dec %rax # March left side of buffer further elft by one byte.
   shrq $4, %rdi # demote all nibbles of arg1 by one nibble position
   jnz .loop
 .endLoop:
-  subq %rax, %rsi # change arg2 from "end of buffer" to "length of buffer".
+  inc %rax # step back forward to last written digit
+  inc %rsi # step right side one past final digit
+  subq %rax, %rsi # change arg2 from "end of buffer" to "length of buffer"
+  movq %rsi, %rdx # .. and then copy that to proper ret2.
+  # ret1(%rax) still holds left side of buffer
   ret
 
-	.text
-StringLiteral0:
-	.string	"Hello\n"
-  StringLiteral0Length = . - StringLiteral0
+	.data
 HexAlphabet:
   .string "0123456789ABCDEF"
 	.globl _start
 
   .data
-Digit: 
-  .byte 0x3F
 numberPrintBuffer:
   .skip 16
 
 .text
 _start:
-  movq $0x3F, %rdi
+  movq $65535, %rdi
   leaq numberPrintBuffer(%rip), %rsi
   call unsignedIntegerToString
-#  putMemoryMacro messageLocation=(%rax), length=%rsi
-  mov %rax, %rdi # move memory location from first return integer into arg1
-  # Length at second return integer already is arg2
-  mov $STDOUT, %rdx # define arg3
+  mov %rax, %rdi # move memory location from ret1 into arg1
+  mov %rdx, %rsi # move length from ret2 into arg2
+  mov $STDOUT, %rdx # define recently vacated arg3
   call putMemoryProcedure
   putNewlineMacro
-  # movq $sys_write, %rax
-  # movq $STDOUT, %rdi
-  # mov Digit(%rip), %rbx
-  # leaq HexAlphabet(%rip), %rsi
-  # addq %rbx,%rsi
-  # movq $singleCharacterLength, %rdx
-  # syscall
-  # putNewlineMacro
-  # putLiteralMacro "Testing\n\n"
-  # putMemoryMacro StringLiteral0(%rip), $StringLiteral0Length
   systemExitMacro 69
