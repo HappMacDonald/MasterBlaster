@@ -1,6 +1,10 @@
+== Point to add to the pile
+* I'mma need to work out a test suite for atom-sized asm code *shrugs*
+** I accidentally fuzz tested my way into realizing that my newb unsignedIntegerToStringBase16 function failed to render LSnibble runs of zeros
+** I can't even REMEMBER how I arrived at the conclusion that it also wrote 1 byte shifted left of it's buffer. It just worked from a black box testing perspective! ;P
+
 == Reminder to self of GASP alternatives, in order of decreasing laziness:
-* copy the macro inline by hand and then debug that.
-* dissassemble using objdump back into source and then debug that.
+* layout split within gdb is golden
 
 == CPUID features I intend to demand at minimum to run a MasterBlaster executable (at least to begin with):
 * MOVBE SSE4_2 .. and I think that's it *shrugs*. I'd love POPCNT but so far I can't get Roma to support it in VBOX on Tolana, despite Tolana supporting it.

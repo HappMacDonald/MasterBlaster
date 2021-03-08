@@ -1,9 +1,6 @@
-STDIN = 0
-STDOUT = 1
-STDERR = 2
-sys_write = 1
-# crusade against magic numbers: Explicit Intent Edition
-singleCharacterLength = 1
+	.globl _start
+
+# Macros
 
 .macro systemExitMacro returnValue=0
   putNewlineMacro
@@ -32,6 +29,43 @@ putNewlineMacroEnd\@:
   syscall
 .endm
 
+.macro putLiteralMacro message:req fileDescriptor=$STDOUT
+  putMemoryMacro messageLocation=putsMessage\@(%rip),length=$putsMessage\@Length,fileDescriptor=\fileDescriptor
+	jmp putsEnd\@
+putsMessage\@:
+  .string "\message"
+  putsMessage\@Length = . - putsMessage\@
+  .align 8
+putsEnd\@:
+.endm
+
+
+
+
+.text
+_start:
+  movabsq $0xFFFFFFFFFFFFFFFF, %rdi
+  leaq numberPrintBuffer(%rip), %rsi
+  call unsignedIntegerToStringBase16
+# call unsignedIntegerToStringBase10
+  mov %rax, %rdi # move memory location from ret1 into arg1
+  mov %rdx, %rsi # move length from ret2 into arg2
+  mov $STDOUT, %rdx # define recently vacated arg3
+  call putMemoryProcedure
+  putNewlineMacro
+  systemExitMacro 69
+
+# Definitions
+
+STDIN = 0
+STDOUT = 1
+STDERR = 2
+sys_write = 1
+# crusade against magic numbers: Explicit Intent Edition
+singleCharacterLength = 1
+
+# Procedures
+
 # arg1 %rdi = memory location
 # arg2 %rsi = length
 # arg3 %rdx = file descriptor
@@ -44,21 +78,13 @@ putMemoryProcedure:
   syscall
   ret
 
-.macro putLiteralMacro message:req fileDescriptor=$STDOUT
-  putMemoryMacro messageLocation=putsMessage\@(%rip),length=$putsMessage\@Length,fileDescriptor=\fileDescriptor
-	jmp putsEnd\@
-putsMessage\@:
-  .string "\message"
-  putsMessage\@Length = . - putsMessage\@
-  .align 8
-putsEnd\@:
-.endm
-
 # Accepts arg1(%rdi)=number to convert to hex string, and arg2(%rsi)=16 byte buffer space.
 # Returns ret1(%rax)=pointer to inside of buffer where RIGHT-ALIGNED answer sits,
 # and ret2(%rdx)=total length of the answer string. That is not null-terminated.
-unsignedIntegerToString:
-  addq $0x10, %rsi # skip arg2 to end of buffer
+unsignedIntegerToStringBase16:
+.bufferLength = 16
+.bufferLast = .bufferLength-1
+  addq $.bufferLast, %rsi # skip arg2 to end of buffer
   # copy arg2 to ret1, which will track the left side of answer.
   # arg2 will stay at the right side of answer.
   movq %rsi, %rax
@@ -85,23 +111,20 @@ unsignedIntegerToString:
   # ret1(%rax) still holds left side of buffer
   ret
 
+
+# Accepts arg1(%rdi)=number to convert to hex string, and arg2(%rsi)=20 byte buffer space.
+# Returns ret1(%rax)=pointer to inside of buffer where RIGHT-ALIGNED answer sits,
+# and ret2(%rdx)=total length of the answer string. That is not null-terminated.
+unsignedIntegerToStringBase10:
+  
+
+# Data
+
 	.data
 HexAlphabet:
   .string "0123456789ABCDEF"
-	.globl _start
 
   .data
 numberPrintBuffer:
   .skip 16
 
-.text
-_start:
-  movq $65535, %rdi
-  leaq numberPrintBuffer(%rip), %rsi
-  call unsignedIntegerToString
-  mov %rax, %rdi # move memory location from ret1 into arg1
-  mov %rdx, %rsi # move length from ret2 into arg2
-  mov $STDOUT, %rdx # define recently vacated arg3
-  call putMemoryProcedure
-  putNewlineMacro
-  systemExitMacro 69
