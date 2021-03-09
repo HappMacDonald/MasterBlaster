@@ -1,3 +1,14 @@
+== Accessing constant symbols defined in assembly:
+* `"%c", *TrigentasenaryUppercaseDigits` prints the first character because *TrigentasenaryUppercaseDigits is interpreted as "the data AT that location".
+* `"%.*s", 36, &TrigentasenaryUppercaseDigits` prints the whole string accurately, because &TrigentasenaryUppercaseDigits is interpreted as the memory location of the data.
+* That said, with no decoration I have no clue how just TrigentasenaryUppercaseDigits gets interpreted. :P
+
+== makefile prototype ideas:
+* I've been running the following
+** gcc -nostartfiles -nostdlib -g -gdwarf-4 -g3 -F dwarf -m64 07_hextest.s libmb.s -o 07_hextest.elf64 && chmod 700 07_hextest.elf64 && ( ./07_hextest.elf64 ; echo $? )
+* Now for my libmb_test project that gets altered somewhat:
+** gcc -g -gdwarf-4 -g3 -F dwarf -m64 libmb_test.c libmb.s -o libmb_test.elf64 && chmod 700 libmb_test.elf64 && ( ./libmb_test.elf64 ; echo $? )
+
 == Point to add to the pile
 * I'mma need to work out a test suite for atom-sized asm code *shrugs*
 ** I accidentally fuzz tested my way into realizing that my newb unsignedIntegerToStringBase16 function failed to render LSnibble runs of zeros
