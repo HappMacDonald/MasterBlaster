@@ -3,8 +3,15 @@
 #define STDERR 2
 
 struct MasterBlasterString
-{ uint64_t a;
-  uint64_t b;
+{ uint64_t string;
+  uint64_t length;
+};
+
+union Bytefield64
+{ uint64_t d64;
+  uint32_t d32[2];
+  uint16_t d16[4];
+  uint8_t  d8[8];
 };
 
 extern void putMemoryProcedure
@@ -24,3 +31,4 @@ extern struct MasterBlasterString unsignedIntegerToStringBase10
 );
 
 extern uint8_t TrigentasenaryUppercaseDigits[36];
+

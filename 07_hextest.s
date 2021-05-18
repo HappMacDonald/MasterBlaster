@@ -1,4 +1,4 @@
-.include "libmb.h"
+.include "libmb_s.h"
 
 	.globl _start
 
