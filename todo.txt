@@ -1,4 +1,83 @@
+== Quick docs update
+* I need primordial Procedure to include not just argc/argv, but the environment variables as well.
+* IIUC, per http://asm.sourceforge.net/articles/startup.html (and this should also be true for x64) the stack on _start includes:
+** dword argc
+** dword pointer to name of app
+** argc x dword pointers to argv elements
+** dword NULL
+** unknown x dword pointers to environment variable strings of the form "variable=value", where I think we are expected to split on the first equals sign. :P
+** dwrod NULL
+* So I my primordial procedure will probably offer the environment variables as a List String
+** And then some library function will offer to split that up into a Dict, but it's up to the user to invoke that.
+
 == Current status:
+* I'm researching memory allocation strategies.
+** The system calls in question appear to be brk (older) and mmap (newer).
+** Sometimes you'll see "sbrk" talked about, but that's functionally just a C a wrapper around the brk syscall.
+** C also has a "brk" wrapper around brk syscall. So when people say (s)brk, they may or may not be inferring the system call vs the noisy wrappers.
+** I think brk increases the size of a single, monolithic chunk of memory that each process is allowed?
+*** I just read a single (possibly about to be corrected) user claim that brk manages "the heap" of an application, while mmap returns "new copies of a new kind of heap".
+*** All of these "heaps" get called "arenas" in this parlance. "The heap" being "the primary arena", and then .. "other arenas".
+*** GlibC apparently calls them "memory arenas", and the idea is "a place in memory where you subdivide to smaller allocations". But any .. "heap?" of memory a process has been allocated by the system is just the arena for an arena to vie within. It's competitor being "wilderness" in the parlance of most algorithms; the large chunk "above" the place where anything else has yet been allocated.
+** I think mmap allocates new chunks of memory from heaven knows what locations, so that you can have more than one chunk floating about.
+** Both calls are "slow" from ASM terms, and thus entire solar systems of optimization surround them.
+** I need to learn how they are used and what they do, and then step back from "malloc/free/realloc" (save perhaps some low level equivilents I might build) and consider an entire memory manager approach instead, where "create new object" allocates the new memory, and garbage collection is handled in some at least relatively clever and minimalistic fashion.
+(on lib_mb.s and full coverage testing)
+** standard malloc/free/realloc algorithms put memory "tags" adjacent to the memory chunks they dole out. They also rely on the exact memory addresses as "handles", which lead to double free errors when the handles get improperly reused. Step 1: allocate, get handle. Step 2, free handle. Step 3, the allocation system (perhaps even during your free) winds up putting other allocated memory at that same location while defragging it. Step 4: you try to free the handle again. This might lead to another allocated chunk starting at that exact location to get freed, freeing memory other parts of your code (or libraries you call) rely upon, or it might try to free the middle of a block and produce very garbage results.
+** Fuck literally everything about that, I demand the following qualities out of my internal allocation functions:
+*** Free must be idempotent.
+*** I think this can be done by requiring caller to maintain a handle separate from the memory address. Then an allocation handle need never be reused.
+**** One potential weakness I can consider is that, if these are 64 bit handles, idempotent free might be more difficult to guarantee after more than 16 quadrillion separate allocations.
+**** But I math out that a top tier PC today, with 2 overclocked CPU cores (total 10Ghz) doing nothing at all but allocating memory as fast as possible (with infinite ram? or a third/fourth CPU core continually frees memory back up again?) it would still take over fifteen (15) years before any process would reach its first handle collision at 16 quadrillion allocations performed.
+*** I can hear the cries of "pushing wrinkles around" because now the potential for double-free-like errors lies with the caller, as well as complaints of increased memory usage for the caller due to storing both pointers *and handles* in caller space. But I counter that callers have more flexibility this way. Store handles in ranges for chunks of memory you plan to free all at the same time, deterministically handle handles by predicting what they'll be after a known number of allocations, etc.
+**** Plus the original memory allocation system was consuming at least as much memory space via its tag system anyway.
+**** They can't even claim "our tags aren't 64 bits long!" because they align to nearest 64-bit location each time anyway, which has an indistinguishable effect upon memory consumption.
+*** The frag/defrag algorithm I am toying with goes like this:
+
+== mb_malloc(N,opt)
+=== isFree?(X,N)
+**** Step through allocation table ensuring that either X+N<H(position), or X>H(position+length).
+**** Possibly via a search aided by a kept index into said table. I'unno lol.
+**** If collision found, return false.
+**** If table exhausted with no collision found, return true.
+=== end isFree?(X,N)
+**** opt(H) is an optional "plx give me something near this handle if you can" handle.
+**** If present, pull X'=opt(h)(position), N' = opt(h)(length).
+**** if opt(align):
+***** X'' = downAlign(X'-N)
+***** Is X'' .. X''+N-1 free? If so, X=X'' and jump to ALLOCATE1. else continue.
+***** X'' = upAlign(X'+N')
+***** Is X'' .. X''+N-1 free? If so, X=X'' and jump to ALLOCATE1. else continue.
+**** else (!opt(align)):
+***** Is X'-N .. X'-1 free? If so, X=X'-N and jump to ALLOCATE1. else continue.
+***** Is X'+N' .. X'+N'+N-1 free? If so, X=X'+N' and jump to ALLOCATE1. else continue.
+**** endif opt(align)
+**** User wants N bytes of RAM allocated to them.
+**** e = ciel(log2(N))
+***** If opt(align), e = min(e,3) (meaning E below will be min 8).
+**** E = 2^e
+**** X = Start from bottom of an arena.
+**** LOOP1: Consider first block of length E (X ... X+E-1).
+**** Is it completely free/unallocated?
+**** If not, increment position we are considering by an ENTIRE E bytes (X += E) and goto LOOP1.
+**** If the block we are looking at IS completely free, then STILL increment position we are considering by an ENTIRE E bytes (X += E) and jump to ALLOCATE1 (or fall forward).
+**** ALLOCATE1: Allocate N bytes starting from X by:
+***** Perform optional defrag housekeeping south of X.
+****** If we got here from the opt(H) path, chances are low that defrag will begin.
+***** H = the "next handle" pointer.
+***** Recording X and N in our allocation table at H.
+***** Increment our internal "next handle" pointer.
+***** Return X and H (order not yet decided).
+*** Above algorithm means that allocating something 2^(e-1) < X <= 2^e always guarantees a hole of 2^e preceding X.
+*** Said hole will be valuable to allocate smaller items later, honor "near opt(H)" requests, realloc, etc.
+
+== mb_free(H):
+**** Vitrify element H in the handles table.
+***** Naive approach is just fill that entry with a fixed invalid row value, but down the line I'll figure out less space-wasteful approaches like making the allocation table be a fancy linked list or something.
+**** Run optional defrag housekeeping across the entire arena.
+
+== mb_realloc(H,N):
+
 * I think my next step is to write libmb_testhelper (asm) wrapper to help test asm functions by first saving all parent/caller-owned CPU registers to memory, and then comparing the register values on return to make sure asm functions are not clobbering any caller-owned regs
 ** I might need to confirm that all of my other tests like buffer overrun tests are working solidly first though
 *** Namely:
