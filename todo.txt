@@ -1,3 +1,528 @@
+== 2022-03-30 current status:
+M1 Plan:
+* "Stack" will for now literally be the system stack.
+* We'll use the following pattern to push/pop items into XMM registers for active use:
+```
+// Initialize system stackframe containing Crude stack:
+push ebp
+mov  ebp, esp
+// Push XMM0
+sub rsp,0x10 // 0x10 = 16dec of course.
+movdqa [rsp],xmm0
+// Pop XMM0
+movdqa xmm0,[rsp]
+add rsp,0x10
+// Clean up system stackframe containing Crude stack,
+// step can be skipped IIRC on sysexit so this is only
+// when returning to an alien caller.
+mov  esp, ebp
+pop  ebp  
+ret
+```
+Using XMM regs to cache top of stack (note: this is all POST M1 now!)
+* keep stack in XMM8-15
+* keep 16 indexibly run 2-line subroutines.
+** 8 move XMM8-15 to XMM0
+** 8 move XMM0 to XMM8-15
+* Store cached head/tail registers in bh and bl (parts of rbx: only scalar parent owned register in Linux calling convention)
+
+== 2022-03-29 current status:
+* Crude will use an ASCII source stream
+** It will operate as a state machine. Consume next single ascii character, enter a new state possibly influenced by which character got 'et.
+** This will also allow me to support arbitrary length verb names, probably as some kinda precompiled B-tree or something? Without HAVING to resort to regular expressions.
+** This makes space a perfect token delimiter
+** I want a tokenizer, but I want to skip the AST: Read source token, possibly influenced by previously remembered compiler things either directly output some assembly .. IN ORDER .. or not. Repeat.
+* Crude needs a macro facility
+** I'm thinking something even more dead simple than gas offers
+** Something like: macro invocation token prefixes a previously defined string onto the source stream for tokenizer to begin chewing on next. Deal with it. 🕶
+** Macro invocation will probably need to be prefixed with a sigil
+** Verbs will be a list of possible tokens that start with a lowercase letter.
+** Macros will be a list of possible tokens following the macro invocation sigil.
+** Immediate values will be "0x" followed by a maximum of 16 capital hex digits followed by a space.
+** Syntax errors, and most other errors will be handled by an as yet undetermined exception mechanism, most likely patterned after however SSE handles it's signaled floating point exceptions.
+
+== RPN Language layer name: Crude
+* Searches say it's unique in this domain
+* Poetically fills several roles:
+** Unfriendly to work with
+** As slang for "Crude oil", it's a fundamental (and simplified) building block of most fossile fuels
+** As "MasterBlaster" alludes to Mad Max: Beyond the Thunderdome, MB created Methane to "fuel" his power. Well.. Methane was in direct competition with the much more scarce and coveted Fossil Fuels (Gasoline, Kerosene, etc), which is refined Crude Oil.
+-- Technically "methane" aligns better to this metaphore, but that's too common a programming language name, and also outside of the MMBtT universe it doesn't suggest anything basic, functional, or unpleasant the way that "crude" does.
+-- "Pigshit" might also have worked here, but we can call that the extra-dysphemistic name perhaps lol!
+-- Luckily, even folk who watched the show will mentally lump "crude" to combustion fuel to MB's pig/methane farming without often realizing they even did it, so I'mma stick the technical inaccuracy in as an easter egg for nerds or summat. :)
+
+
+== RPN Language layer "Crude" grammar:
+2022-03-29 first draft inspired by GemScript syntax, but with no string/array/execution control support for our M1 release, since that all gets handled differently in compiled vs interpreted languages anyhow.
+Verbs will be tokenizable tokens separated by whitespace.
+But these sound like promising first runs for M1 verbs.
+I may not implement them ALL for M1, we'll see..
+.. also, how "execution context" is handled and how immediate values are delimited has also not yet been decided yet.
+== system
+x Exit
+Assembly: mandate a system exit call
+least 8 significant bits of top of stack gets translated into a system return code.
+When a stream of source code abruptly ends, if it is not in any sort of nested context then it behaves as though Exit were encountered.
+If it were in a context, it would do the same as some other as yet undecided verb.
+? Read from filehandle
+Assembly: mandate a wrapped system filehandle read call.
+Removes argument "fileHandle:UnsignedInteger63". Tries to system filehandle read precisely 8 bytes of data from said handle.
+On success, the 8 bytes of data are placed as a single data item on top of the stack (endianness not yet decided) and execution continues.
+Failure will throw a Crude exception of some sort. Partial read is a failure, and that exception will also add number of bytes read, and read data aligned to least significant bit of its container and (maybe) zero padded.
+This exception *may* be designed to help make it easy to repeat the read and get the "remainder" of the chunk of data .. but for M1 I don't care. Partial reads would just be fed into the next part of the pipeline as if they were chunks of data that had already had bites=bytes taken out of them.
+? Write to filehandle
+Removes argument "fileHandle:UnsignedInteger63", and argument "data:UnsignedInteger63".
+Tries to write all 8 bytes of data contained in "data" argument verbatim to the filehandle. Execution continues on success, exception is thrown on failure. "Not ready" is a failure, as is "Partial write" each returning argument data on the stack that helps in rolling into the next step.
+-- If I want a partial-write verb for <8 byte writes, I think that I'll make a separate one. *shrugs*
+
+== UnsignedInteger63 Arithmetic
+-- I'm currently debating whether "type being handled" ought to simply be a separate "mode", that can be switched around via tokens? Perhaps "UnsignedInteger63Mode / Float64Mode / BooleanMode". For example, in UnsignedInteger63Mode "and" is bitwise and in Boolean mode it ensures all bits are equal (logical).
+-- considerations: will said mode have more semantic meaning at the compile-time or run-time step, and thus where does it get provisioned? I want to say "compile-time step", but that raises questions I'm not sure how to answer yet like "what happens if execution control somehow jumps in between a mode change and an operation following it". Or is there a way for me to arrange for that to never be possible?
+-- On the strength of my conviction that we ought to somehow be able to handle TypeMode at compile-time, I'm slicing the prefix off of all of the Typed tokens and writing it out as a colon'd prefix. EG: UnsignedInteger63:Foo would mean "you call this operation with token `Foo` in `UnsignedInteger63` Type Mode".
+-- GAS macros will still probably use their full names though, because why not. :J
+x UnsignedInteger63:negate (two's complement)
+x UnsignedInteger63:add
+x UnsignedInteger63:multiply
+x UnsignedInteger63:equal
+x UnsignedInteger63:greaterThan
+** EG: (1 2 3 4) greaterThan (1 2 FALSE)
+x UnsignedInteger63:bitShiftDownZeroPad
+** Docs on this SIMD instruction are not being clear if it will shift each item in the destination register by a number of bits specified by only the first (least significant) value in the second register, or if it shifts each lane by the number of bits specified *in that lane* of the second register. Testing will be required to confirm. I will roll with it either way, but I want my docs to be accurate! ;P
+x UnsignedInteger63:bitShiftUpZeroPad
+x UnsignedInteger63:bitRotateDown
+x UnsignedInteger63:bitRotateUp
+O UnsignedInteger63:castToFloat64 (not M1)
+x UnsignedInteger63:castToBoolean (based on most significant bit)
+* Apparently no SSE support for UnsignedInteger63:
+** Division
+** Modulo
+** Exponent
+
+== Boolean Arithmetic
+* Canon boolean true is 64 1 bits
+* Canon boolean false is 64 0 bits
+* Interpretation of any other value to boolean is currently based upon high bit, iff you cast something to a Boolean.
+* No casting FROM Boolean TO UnsignedInteger63 or float64 offered at present, as its not clear what favored canonical results would be. Maybe 0 is false, but what would true become? 1/1.0? -1/-1.0? MAXINT/INF? etc
+? Not
+? and
+? or
+? xor
+
+== Float64 Arithmetic (I'm delaying float support completely until after M1)
+? Float64:negate
+? Float64:add
+? Float64:multiply
+? Float64:divide
+? Float64:exponentiation
+? Float64:comparisonSpaceship??
+? Float64:castTo
+* Maybe floor, ciel, or other rounding things depending on what native CPU support looks like?
+? Float64:castToUnsignedInteger63 may depend on above
+? Other non-casting rounds — especially when not rounding to ones' place in base 10 — may also be offered.
+* "Modulo" would also depend on "floor" from above.
+* Trig functions .. uh .. whatever CPU is offering things for
+* Hopefully at least natural logarithm?
+
+== Stack Manipulation
+? UnsignedInteger63 immediate value
+Used as it's own token, pushes this value unceremoniously onto the stack.
+Used inside another token, does whatever that token wants to do with this value.
+Must be hexadecimal. Must be uppercase, aside from 0x prefix it also must have.
+Hyphen before or after 0x — if present — indicates two's compliment negation of stated value.
+Hyphen both before AND after is stupid. You don't want to be stupid, do you?
+It would be interpreted as a double negative and waste everyone's time. Congratulations.
+Offering more than 16 hex digits will cause earliest digits to simply be forgotten.
+Underscores encountered where hex digits are expected will simply be ignored,
+making them convenient place seperators.
+-- This is a runtime token, but it will generate and then rely upon a hidden
+"_defineNamedConstant" token.
+Ex:
+0x0 -> 0
+0xFF -> 255
+0x-1 -> -1 aka 18,446,744,073,709,551,615
+-0x2 -> -2 aka 18,446,744,073,709,551,614
+-0x-DEADBEEF -> 0xDEADBEEF aka 3,735,928,559
+0xFFFF_FFFF_FFFF_FFFF -> -1 aka 18,446,744,073,709,551,615
+0xDEADBEEF_0000_0000_0000_0009 -> 9
+? Float64 immediate value
+Used as it's own token, pushes this value unceremoniously onto the stack.
+Used inside another token, does whatever that token wants to do with this value.
+Anything that starts with a decimal digit.
+During M1, no support for explicit exponent.
+Prepended by hyphen performs two's compliment.
+Underscores encountered where hex digits are expected will simply be ignored,
+making them convenient place seperators.
+MUST contain a single decimal point somewhere in its representation, or else
+you'll get a syntax error.
+An indefinite number of leading and trailing zeros are permitted.
+Ex:
+0. -> 0
+-00.0000 -> Negative Zero, aka 0x1000_0000_0000_0000
+123456789. -> 123456789.0, aka some messy hex thing I'm not looking up right now.
+-.000_001 -> 1/1,000,000
+? Boolean immediate value
+Used as it's own token, pushes this value unceremoniously onto the stack.
+Used inside another token, does whatever that token wants to do with this value.
+Ex:
+TRUE = 0xFFFF_FFFF_FFFF_FFFF
+FALSE = 0x0
+? _defineNamedConstant
+Leading _ means compiler directive.
+Defines a 64 bit constant value which can be referenced from anywhere else in the source file.
+Ex: () defineNamedConstant_E_0x5 defineNamedConstant_I_0x1 UnsignedInteger63Mode E I E I 0 add add add add -> (0xC)
+? pop
+destroy top item in stack
+Ex: (1 2 3 4 3 1) pop -> (1 2 3 4 3)
+-- Note: "Push" is nothing more than an immediate value appearing in the execution stream: those get automatically pushed onto the top of the stack.
+? clear
+destructively empty entire stack
+Ex: (1 2 3 4 3 1) clear -> ()
+? dup
+duplicates single item at top of stack
+Ex: (1 2 3 4 3 1) dup -> (1 2 3 4 3 1 1) 
+? exch
+swaps top two values in stack
+Ex: (1 2 3 4 3 1) exch -> (1 2 3 4 1 3)
+? count
+pushes current stack length onto stack as an UnsignedInteger63. Note: this leaves new stack 1 item longer than the value shown on the top of the stack.
+Ex: (1 2 3 4 3 1) count -> (1 2 3 4 3 1 6)
+? index
+removes top of stack as argument "n:UnsignedInteger63". Then finds the nth item in pop order, leaves it in place, but pushes a duplicate of it to the top of the stack.
+Ex: (1 2 3 4 3) index -> (1 2 3 4 2)
+? roll
+Removes argument "domain:UnsignedInteger63" first. Removes argument "offset:UnsignedInteger63" next. Shifts the top "domain" items in the stack forward a distance of `floorMod(offset, domain) = (offset/domain - floor(offset/domain))*domain`. Thus, if "offset" is 0 or any multiple of "domain" the effect is a NOOP (aside from popping the arguments) and negative offsets correspond to rolling backwards instead.
+-- behavior when domain > stack size not yet decided.
+Ex: (1 2 3 4 2) roll -> (1 2 3)
+"offset" 4 is a multiple of "domain" 2, so nothing got rolled.
+Ex: (1 2 3 4 3 1) roll -> (1 4 2 3)
+Ex: (1 2 3 4 3 -1) roll -> (1 3 4 2)
+Ex: (1 2 3 4 3 5) roll -> (1 4 2 3)
+Ex: (1 2 3 4 3 -9) roll -> (1 3 4 2)
+Ex: (1 2 3 4 30 1) roll -> !!not yet defined behavior!!
+? rev
+Removes argument "n:UnsignedInteger63". Reverses the positions of the following "n" items in the stack.
+Ex: (1 2 3 4 2) rev -> (1 2 4 3) 
+? del
+Removes argument "n:UnsignedInteger63". Destroys remaining top "n" values in the stack.
+Ex: (1 2 3 4 2) del -> (1 2)
+? copy
+Removes argument "n:UnsignedInteger63". Duplicates the remaining top n values in the stack, in matching order.
+Ex: (1 2 3 4 2) copy -> (1 2 3 4 3 4)
+? BitSplitDown
+Removes argument "n:UnsignedInteger63". Removes argument "data:UnsignedInteger63". Right shifts (divide shifts, towards least significant bit shifts) "data" by "n" bits. Top "n" bits of data are replaced by zero bits. Bottom "n" bits of data get placed in matching order into the least significant bits of new value "data2:UnsignedInteger63". "data" followed by "data2" are pushed back onto the stack.
+Reading a stream (germane to low milestone goal of self-compilation) will have to rely on keeping a "length" for how many bytes are left to split out of a value.
+Ex: (1 2 0xFF 3) BitSplitDown (1 2 0x1F 0x7)
+Ex: (1 2 0x88 5) BitSplitDown (1 2 0x4 0x8)
+Ex: (1 2 0xDEADBEEF 8) BitSplitDown (1 2 0xDEADBE 0xEF)
+
+
+
+== 2022-03-28 Plans: begin building RPN toy language 
+* Step one: only uses XMM registers by default.
+* Starts out only supporting SSE4.2 commands, AND only ever using the lowest lane of data. Upper lanes just don't exist to this problem space yet.
+* Starts out only supporting 64-bit unsigned integers, and 64-bit double precision floating point numbers as primitive data types.
+** Later support will expand to:
+*** 0-64 bit signed and unsigned integers
+**** I haven't yet gelled on what 0-bit means yet, I'll need to explore that option in this context though just in case it hides some gems.
+*** 32 and maybe even 16 bit floats
+**** only one of the 16 bit float varieties though, I'mma figure out which is the most popular in AI use.
+*** No concern for unbounded precision intergers or floats any time in the near future, I'll leave that in the domain of language libraries.
+* I've got to figure out a rough human-facing source code grammar
+** Should be almost brainfuck levels of favoring parsing simplicity over user friendliness, as this is a basement level language not unlike Assembly after all.
+* I might want to work out a macro language here as well? I'unno.
+* M1 RPN stack simply overflows if you run out of (16) SIMD registers, no looping of data to RAM just yet.
+* Intrinsic support for primitive input via CLI? Undecided.
+* Intrinsic support for system exit code: bottom 8 bits of topmost stack position gets returned to shell on exit.
+* When I get around to supporting alien ABIs (linux) fairly early on (through a compiling abstraction layer, no less) RPN's user-facing calling convention will be "Integer and/or Float arguments 1-X are just sitting in the stack in that order, dawg, and one or more enumerated return variables will be left in their place".
+* I need to name my RPN! ;P
+* RPN data will not be typed. Primitive data right now is naked 64 bit bitstrings. Commands are typed: so if you push an integer and then pop a float, you've just performed a cast like it or not. RPN level is not the level that offers any user safety of this type.
+
+
+== 2022-03-28 Insight: RPN layer using almost exclusively SIMD registers
+* New idea to explore: what if I make all of the SIMD registers into a round-robin stack?
+* I'd never need to keep track of in-register stack head and tail in-assembly, as that would be handled one level up by the compiler and/or macro language.
+** Yes, that means that register use in static code would be inflexible once compiled. But any flexible need for stack use sounds to me like a job for an iterable instead. "The stack is not the right place for runtime dynamic movement" sounds like a powerful principle to explore in the zen of SIMD coding. But I will be curious to see how this forces Recursion to manifest, since primary Recursion cannot run directly in parallel. Though TCO recursion should be safe keeping dynamic movement off of the stack, at least.
+** Next question is how to handle "relocatable" function calls in the stack? EG: call X(), then push 7, then call X() again. Assuming that X() is not inlineable, how will we handle that?
+** Bear in mind that stack frames may be fool's gold here, as the caller and subroutine still need a way to pass arguments and return values.
+* I may still handle loop control via scalar regisers, but that would be treated as a lower level concern than most user-facing APIs. It would be buried exactly as deep as Goto.
+* This also means that I'm forging my own internal calling convention, which sounds sexay. ;D
+* FXSTORE or whatever it is may help tons here. It's gotta be quicker to store 16-32 *MM registers to/from RAM than it is 3-4 individual scalar registers via push/pop etc, right?
+* One of the bigger sticking points I can see right now is that I will still need to interface with "alien" calling conventions, and they'll want a lot of stuff in scalars.
+* So, what's the quickest way to transfer data between *MM and scalar if that's necessary at a low level? It may be frequently avoided by careful planning at the compiler/macro level, but I'd like a last ditch assembly-level answer too.
+* On the plus side, this approach may later also help facilitate coordination with arbitrary ABIs. Linux+Windows+Mac for example.
+-------------
+* Sweet! Looks like MOVQ/MOVD can do the job easily enough. Can move between:
+Scalar Register <=> Scalar Register
+Scalar Register <=> RAM
+Scalar Register <=> SIMD Register (low lane, zero other lanes on receive)
+* Paired with MOVAPS/MOVUPS which can move full width between:
+SIMD Register <=> SIMD Register
+SIMD Register <=> RAM
+* And MOVSS/MOVSD which can move low lane between:
+SIMD Register <=> SIMD Register
+SIMD Register <=> RAM
+* And an entire zoo of SIMD shuffling options, we should be quite covered!
+* Scalar Regiter -> SIMD Register fills lowest lane and zeros all higher lanes, but I don't foresee ever wanting to directly shuffle scalar contents into a multi-lane dataset. I'd largely be setting up loop counters, or on/off ramping to alien ABIs this way instead.
+
+
+== AVX512VL
+* Without it (but with AVX512F), you CAN use ZMM0-31, but can only use XMM/YMM 0-15.
+* Whether I include this feature in M1 highest tier of support or not will depend on how widely its supported. EG, if 90% of AVX512F processors also do AVX512VL then its a no-brainer. If less then that, I'll at least consider dropping M1 high end support for AVX512VL.
+* Only "Knights Mill" and "Knights Landing" microarch support F but not VL according to https://en.wikichip.org/wiki/x86/avx-512 .
+
+== Floating point numbers:
+1. I feel like I want to support these late, because I hate them.
+-- It's not that I feel they have no use at all, but they form a very strangely shaped data entity that increases in resolution as you approach zero, and thus they make a flaky-as-all-hell leaky abstraction for computable numbers.
+2. I would like some IEEE 754 based names for the common types
+3. These should be aliases to longer names that explicitly enumerate the bits of exponent and mantissa, as well as clarify their order.
+4. A single bit for sign will be infered from the prefix "signed", and lack of bits infered from "unsigned".
+* "s10e5" is one well known name for one variant
+* VCVTPH2PS / VCVTPS2PH are optional instructions to convert between IEEE 754 Binary16 (half precision) and Binary32 (single precision), I think they're part of FMA4 or something? Def not SSE4.2's age though.
+* (per Wikipedia) IEEE 754 standard specifies a binary16 as "1 sign bit, 5 exponent bits, 10 explicit mantissa bits" = 1s5e10m. (This might be s10e5, but I'll need confirmation)
+-- https://www.mrob.com/pub/math/floatformats.html#minifloat confirms that s10e5 == binary16.
+* Google Brain/Google AI also developed competing standard Bfloat16.
+-- "Bfloat16 is used to reduce the storage requirements and increase the calculation speed of machine learning algorithms"
+-- That appears to be "1 sign bit, 8 exponent bits, 7 explicit mantissa bits" = 1s8e7m.
+-- It's advantage is that it is literally a single precision IEEE 754 Binary32 (1s8e23m) with it's second half lopped off, making conversion to/fro very simple.
+-- great for ML, high dynamic range but very imprecise. Terrible for representing integers, which ML coefficients fail to give 2 shits about anyhow.
+-- AVX-512 BF16 extensions also offer hardware support here.
+* NVidia's TensorFloat is similar, at 1s8e10m.
+* Basically all float formats use an exponent bias, so "zero" exponent is encoded as (2^(E-1))-1 where E is the number of exponent bits.
+* NaN, -0, and ±∞ may require further special handling between formats.. I know that at least one AMD format I'm leaning toward not supporting just refuses to encode them or something.
+* The Khronos/Vulcan 16 bit float format appears to be IEEE 754 binary16. OpenGL appears to do the same.
+* http://www.fox-toolkit.org/ftp/fasthalffloatconversion.pdf offers an algo to convert between IEEE 754 binary16 "half" and binary32 "single".
+* IEEE 754 binary32 Single Precision = 1s8e23m
+* IEEE 754 binary64 Double Precision = 1s11e52m
+* IEEE 754 binary128 Quad Precision = 1s15e112m (AFAICT nobody offers hardware support for this one, but I'll still swing at software library support for it!)
+* 8087/x86-64 still supports an 80-bit float format, but from what I'm reading so far I should be safe to literally pretend that doesn't exist, including boycotting all hardware support for it. It's also NOT part of IEEE 754, so I will focus on "are people using it" and "is it in a standard" trumping "hey look at the potentially cheap hardware support for it laying literally at my feet". ;)
+* So it sounds as though the only formats I'll need to explicitly target supporting are:
+* 1s5e10m, 1s8e7m, MAYBE 1s8e10m, 1s8e23m, 1s11e52m, and perhaps 1s15e112m. This latter appears to currently lack hardware support in my target chips, but it may creep in in the future as it's apparenlty quite popular to use still.
+* I may try to write the libraries to be able to handle completely arbitrary bit sizes on the exponent and mantissa fields, but if I wind up optimizing down then above are the formats I'll target.
+* PERHAPS I'll look into unsigned float support? It's sounding less and less likely the more I read though.
+* NOTE on "smaller" floating point values in general and 16-bit ones in particular: It is very popular to up-cast a float when loading from memory into register(s), then perform operations, then down-cast again on save. With 16-bit values its even so popular that I think nobody actually performs in situ operations on them, they upcast through usually to binary32 instead.
+** Thus I will want to focus a lot on up/down casting options, and I am free to flat out refuse to support anything BUT load/cast/store for 16-bit floats.
+
+
+== inexact support?
+* The latest C libaries support aliases for both exact float/integer format representation as I've been proposing, *and* inexact: such as "at (least/most) N bits, whatever is (fastest/smallest)".
+* I am undecided on whether I will bother taking a shot in that direction or not, especially as I am at present exclusively targeting x86-64, SSE/AVX+ SIMD, and maybe eventually GPUs.
+
+
+== Some SIMD/Vectorization thoughts:
+* I've mentioned elsewhere in this document that I feel like the 64-bit variant of SSE4.2 (with FXSR but without POPCNT) is a comfortable ground floor.
+** That means that I can rely on always having at minimum 16x128bit vector registers at my disposal
+** And that I'll never have to "lowest common denominator" vectorizable code into scalar code to suit an old CPU.
+* Industry best practice for vectorization is "choose your battles". I'll wind up doing some benchmarks of vectorized vs not code to taste test throughout development, but the null hypothesis I'll use in MY compiler will be "choose TO battle". :)
+* Speaking of which, I'm planning a "midlevel" language as a bytecode. "midlevel" obv doesn't have to be terribly user-friendly, but it should be exceedingly simple (I'm planning "reverse polish"-style, just like Gemscript/LISP/Forth) and my goal is that it will help make many compilation tasks simpler to reason about.
+** All of the high order work and most of the type work can be done compiling source code into midlevel, and then architecture considerations can be made compiling midlevel down to assembly.
+** I'm also wondering if I can pull some "self-modifying" / partial JIT tricks for vectorization in different architectures. EG if I can literally insert different machine code into vectorized intrinsic activities at early runtime based upon CPUID results tested at run start.
+* Obv MB will use a 64-byte data aligned approach. Midlevel language will have the power to direct 64-byte chunks of RAM for allocation, and do its best to treat these entire cachelines as vectors. AVX-512 would actually eat these entire cachelines into single registers, while lesser vector extensions would eat them in iterative chunks.
+* I want to always describe "lane width" in bits. SSE4.2 = 128bit (=16 byte) lane width, AVX1+2 = 256bit (=32 byte) lane width, AVX512 = 512bit (=64 byte) lane width.
+* I don't yet know how many permutations I want to directly support. 2 bare minimum would be the lowest end SSE4.2, and the highest end I currently can test AVX1. It will take some research with VNNI and all of the spreading options in the newer instruction sets to determine where to put these handholds.
+** This stackexchange post suggests that: https://stackoverflow.com/questions/53443249/do-all-cpus-which-support-avx2-also-support-sse4-2-and-avx
+*** "<" means "everything to the left is implied by the next thing to the right"
+*** SSE1-SSE4.1 < SSE4.2 < POPCNT < AVX1(and XSAVE) < AVX2 < AVX512F
+*** AVX512F is the base level of AVX512, but apparently every other AVX512 feature is a grab bag without interdependancy.
+* I want to generalize favoring branchless programming somehow
+* It seems unavoidable that the code I'll create always amounts to "tight loop this snippet of code to process one vector-worth of data". Sounds like the outer part of that loop always has to be scalar (I can't imagine any coherent way to vectorize THAT.. save perhaps sometimes unrolling loops. Like, especially 1 roll over 512bits vs 4 rolls over 128 bits).
+* Here is a good treatise on "what's changed in CPU and ASM programming since the 80s": http://danluu.com/new-cpu-features/
+
+== CPUID support table
+* Below "postpone support" means not currently planning to support this feature in M1, but might be fun to look into down the road.
+* "boycott" means I hate it passionately and refuse to probably ever support it. (EG: x87 FPU, MMX, etc)
+* "AVX-VNNI" appears to be a backport from AVX512-VNNI, I'mma postpone support.
+* AMX = Advanced Matrix Extensions is post AVX-512, so postpone support.
+
+
+== How to check CPUID for SIMD capabilities, and for Cache line sizes:
+https://web.archive.org/web/20210217102621/https://softpixel.com/~cwright/programming/simd/cpuid.php
+https://en.wikipedia.org/wiki/CPUID
+It is my understanding that cache line size is almost always 64-BYTES, but may in fancier or newer CPUs wind up being 128 or 256 instead.
+So I should circle my wagons around 64-Byte = 512-bit alignment.
+
+== Dumbed down Higher Kinded Types
+I envision supporting a very dumbed down version of HKT.
+1. There will be General Types, Concrete Types, and Type Variables (which might only live in type signatures: other applications not yet known).
+2. Concrete Types can NEVER be an HKT.
+3. General Types and Type Variables can NEVER be the concrete type of any actual data, save certain compiler singletons like Wildcard :: Top
+4. Each General Type is literally just a list of all of the other types (either Concrete or General) which are members of it.
+5. Type Variables are similar, save that the compiler treats them as algebraic unknowns to solve for. Once solved, they would probably represent an ephemeral General Type and be treated as such internally.
+6. Since Concrete Types can never be HKT, Unsigned64BitInteger would not be a generalization of Unsigned8BitInteger, nor would any Float be a generalization of any Integer.
+
+== `List Invocation` as procedures, Macros as assignment et al
+I've rethought the "procedure/blaster" paradigm to work in a new way. Mainly as fruit of the "wring all decision making out of the procedures" drive.
+Now, instead of launching on a `main` procedure, I will go back to launching on a `main` lambda.
+The `main` lambda will be circumstantially restricted to signature `List String -> List Invocation` (or something a bit longer if we include environment variables in there)
+It will compute fully pure lambda style, and what it returns will be a list of "invocations".
+That list of invocations is going to be meta-programming: literal instructions for Blaster to follow.
+So Blaster cannot run with the ball until `main` has completed and returned.
+Blaster — now girded with a list of instructions — will follow them sequentially.
+Each instruction is an "invocation".
+This will be modeled as an ADT, a different ADT for each procedure.
+first ADT argument is a return "label". System.never will be commonly used when either the procedure in question returns nothing, or when blaster wants to forget what gets returned.
+Actually as I write this, I'm on the fence about whether we need to require void procedures to be fed System.never, or if that position can simply be elided in those circumstances.
+`type System.label String` ADT will be used for any return value we do care about remembering. (use of "string" here instead of some sort of atom is presently being workshopped)
+The ADT arguments following that will represent each of the arguments for the procedure in question, which might include `System.label`s returned from earlier statements in THIS list of instructions.. or which might include expression values entered by the lambda at the metaprogramming stage.
+`type System.setLabel System.label a` will be a standard procedure which accepts an argument and instantly pins that data to the new label.
+This will be one easy way for Lambdas creating these lists to assign a System.label to a bit of data dumped in by the lambda, and then refer back to that label elsewhere in the instruction list.. possibly multiple times.
+(Maybe this won't get used much, since lambda's can use macros for the same purpose? I think experience will show us.. but having an `identity` transformation in this pool sounds like a must even if its completely useless in practice. hehe!)
+Procedures that can be invoked this way include:
+* System calls (including exit, call, tailCall, return)
+* Library calls outside our language
+* Ports to other languages
+* other lambdas
+
+`type System.exit (System.never?) Unsigned8BitInteger` will abort the current procedure list due to ending the application.
+
+The last procedure in a list MUST be something that runs with the ball: that is either System.exit, `type System.return a` (maybe if a=Unsigned8BitInteger then System.return could be used from level 0, otherwise that's gotta be a runtime error. From deeper levels a can be possibly anything, and the calling invocation list can optionally tie that to a label in it's scope), or `type System.tailCallProcedure (System.never?) Lambda a` wrapper for a lambda that returns a new `List Invocation` (EG: bail from this invocation list and make that lamda create a brand new one to run instead), or any never — including an ordinary invocation whose return is forgotten via never. Dangling never would pop the stack up a level. If this is top level, then that is tantamount to `System.exit 0`. If not the top level then it is tantamount to System.return System.never.
+
+`type System.callProcedure a Lambda b` will be similar to the tailcall above, except that this invocation list will not bail. Instead the calling list executes the Lamda, that lambda (acting as the initiator for a procedure) MUST return `List Invocation`, but then that `List Invocation` returns a back to the calling list.
+
+`type System.callLambda a Lambda b` instead calls the lambda, which directly returns `a` with no further invocation lists involved. There will be no System.tailCallLambda because we can't tailCall to something from an invocation list unless it realizes into a new invocation list.
+
+I'm not yet sure how I'd like to enforce type safety in any invocation list. EG:
+[ System.identity (System.label "a") "five"
+, Math.add System.never (System.label "a") 3
+]
+
+Note: I have no idea if I'll even consider offering Math.add to Blaster.. I want all math and calcultion bucks to stop on lambdas.
+But as far as type safety: it's simple to have `Math.add: Number a -> Number a -> Number a` as a lambda, but how do I type signature procedures like system calls?
+And, when I'm tossing labels left and right, how do I type guarantee the types of what I link to those?
+Maybe a different System.X label ADT wrapper for each type? Such as `type System.Unsigned8BitIntegerLabel Unsigned8BitInteger`?
+More thought will be needed on how to enforce syntax and type safety here. ADT enforced syntax and type safety does sound like the place to start, however.
+
+I will allow runtime exceptions to occur in Blaster, so I might work up an exception handler scheme eventually. But I very much want to reduce the surface area of *possible* exceptions by arranging for the compiler to catch the coder before they shoot their own damned selves in the foot within my language, lol. If possible, I'd arrange for Procedure calls outside my language to experience runtime errors, while procedure lists will be held as impervious to that fate as I can manage.
+
+I should probably.. EVENTUALLY.. support the syntactic sugar of "named procedures".
+Prior to support, we can do the aforementioned `type System.callProcedure a lambda b` where lambda would be restricted to type signature:
+`myLambda : b -> (possibly curried arguments, I'm trying to figure this part out lol! ->) List Invocation`
+The same would be true of System.tailCallProcedure
+
+But with the syntactic sugar of named procedures, I could Offer a name and type signature for a raw list of procedures, and then type that out as code w/o having to type List decoration around its lines. This would at least conceptually desugar to a lambda that does nothing but define and return the matching list invocation literal. In reality it will probably somehow short circuit the lambda pitstop, though.
+
+label names would have a scope per list of invocations. They can NOT be redefined once defined, but multiple labels can easily refer to the same data object. This should work much like Macros, which scope over the whole source file.
+
+Macros - subsuming module includes, and some (or maybe all? :D) "let/variable/constant"s
+I want to dispense with "include" declarations and have the compiler decide to include a module as soon as it sees the module invocation anywhere in the code file.
+In place of this, we can have macros, like:
+`Macro.Starboard System S` or
+`Macro.Port S System`
+
+Compiler would NOT load a module upon seeing it macroed, as creating an macro does not invoke the module.
+This should help remove concerns of "including" modules that later get deprecated and taken out of use in the current code file leading to wasted effort by the compiler to load modules that never get used.
+
+Real module names might be long and cumbersome (eg: explicit) enough to encourage coders to always macro them, in turn allowing code readers to see which modules will be invoked at a glance at the top of the code file (or in its relatively brief macro include files). But I'm on the fence with that being necessary vs fostering real explicitness within the code and avoiding even dangling macros if modules get abandoned, as that would just mislead readers as to what modules will wind up getting used in a particular source file.
+
+I want the EXACT SAME macro system to be used for named values (replacing constants, faux variables, etc) within scopes. I am not yet certain how reasonable it is to expect ALL constant assignment to melt into this pot, but I'll find out.
+
+Every scope including the global code file scope will have its own namespace.
+-- Editor's note: is it even possible to scope a macro to a code block? Maybe that requires the lexxer to count block boundaries early?
+
+Capitalized names are modules, so `CapitalName.something` is a module method while `lowerCaseName.something` is a pipe invocation.
+`CapitalName.something.somethingElse` would be the `something` module method's return value being piped into `somethingElse`.
+aka: `somethingElse CapitalName.something`
+`something.CapitalName.somethingElse` would be the `something` lambda's return value piped into the `CapitalName.somethingElse` module method.
+aka: `CapitalName.somethingElse something`
+`CapitalName.moduleMethod` would NOT allow whitespace on either side of the period.
+`lowerCaseLambda.anotherLambda` WOULD allow whitespace and continuation-allowed newlines on either side of the period.
+aka `lowerCaseLambda . anotherLambda` and `lowerCaseLambda\n  .anotherLambda` might be popular alternative representations.
+if `lowerCaseLambda` from above had arguments, then whitespace or grouping delimiter would be REQUIRED to the left of the period in question:
+`lowerCaseLambda argument .anotherLambda`, or perhaps:
+```
+lowerCaseLambda argument
+  .anotherLambda
+```
+which all naturally means the same thing as:
+`anotherLambda (lowerCaseLambda argument)`
+`lowerCaseLambda` from above having arguments requires nothing special of the period that pipes into `anotherLambda`.
+To change up the names a bit:
+`lambdaA.lambdaB argumentB`
+is equivilent to: `lambdaB (lambdaA) argumentB`, and
+`lambdaA argumentA .lambdaB argumentB`
+is equivilent to: `lambdaB (lambdaA argumentA) argumentB`.
+
+Types (ADTs) also have capitalized names. A type may have the same name as the module it is defined within. However, aside from that case, the creation of a new type tips the compiler off to check all modules available to use and it will throw a compiler error if the type name collides with any reachable module.
+
+Both types and module names can CONTAIN periods as well.. iff the character following each period is another capital letter.
+This allows apparent submodules and apparent subtypes without confusing the lexxer about whether it's a module after the period or the interior of the capitalized name.
+Obviously module `Foo` can have type `Foo`, and even type `Foo.Bar`.
+But if you ever actually go to the effort to create module `Foo.Bar`, then at that moment module `Foo` no longer gets to define type `Foo.Bar`, and that definition ought to be migrated into the new module of the same name.
+This should be simple for name resolution to allow, as /[A-Z][A-Za-z0-9_]*(?:\.[A-Z][A-Za-z0-9_]*)*/ can match a compound type or a compound module name but cannot match a piping request into a local lambda.
+There may be a need to pipe from one module (or type?) to another, but I WILL require whitespace on one side or another of the period in that circumstance.
+Ex: `Nothing .Module.method`, `Nothing. Module.method`, or `Nothing\n  .Module.method`.
+`Nothing.Module.method` would not be lexxed as an argument pipe, but instead as a long module name. Hijynx would surely ensue.
+As seen a few more lines above, piping a lowercase term or a literal into a Module method or type constructor does not require spaces around piping period.
+Ex with literal: `"hello world".String.CaseTransformUpper`
+
+let replacement examples:
+`Macro.Starboard Math.Plus 2 2 answer`
+`Macro.Port answer Math.Plus 2 2`
+`answer .Macro.Port 2.Math.Plus 2`
+or:
+```
+Macro.Starboard .Math.Plus plus
+Macro.Starboard .Math.Minus minus
+Macro.Starboard .Macro.Port is
+Macro.Starboard .Macro.Starboard becomes
+answer is 2 plus 2
+3 minus 1 becomes anotherResult
+```
+
+In Elm, there are some modules "imported" and some bled into the local namespace *by default* and I hate that.
+I think in MasterBlaster I will cook up a "popular default macros" macro file that serves a similar function, but is opt-in: you have to explicitly import it to get its effect.
+It will in turn call on other popular macro collections, which you might pull in a la carte instead if you prefer.
+
+"Import" will be part of the macro system as well.
+Compiler will load and lex all Imports into memory (I'll look into streaming huge files be an option well after initial launch) in such a way that lex's error data records filename, line, and column as they are in source. And while doing so, it will consume all of the lex tokens it streams through describing Macro.Starboard or Macro.Port, and build a macro table out of them. Macros colliding with any other valid names (including other live macros) throw a compiler error.
+Then every token it lexes gets compared with the macro table, and if found the macro gets lexxed into a "macro replace begin" token with metadata of what the macro name is, and where it was found.. and then the lexxer recurses (similar to an included file) into the replacement string like it is a temporary file, with temporary row/column to record on each subsequent token. Lexxer must then review the replacement stream for further macros before it reaches the end of the stream where it can insert a "Macro replace end" and then pop out to start lexing new source code in the enclosing context once more.
+
+When the lexxer recurses into a macro's replacement stream, said macro is also added to a stack of "blacklisted" macros, so that if they are found again we can spawn a macro self reference error.
+
+For the time being, both Macro.Starboard and Macro.Port definition lines will put the lexxer into a novel StateMachineState.
+In this state, it's goal is to consume all token to the end-of command (For now, that is a newline following a token that does not have suppressEndOfLine property set) but process only the desired "name of macro" token (first token for Macro.Port or last token for Macro.Starboard) and leave the rest as a long string (with or without normalized whitespace, I haven't yet decided). Then, it enters that token as the macro name and the remainder of the string as the macro expansion into the macro table for later use.
+
+Macros in general will be lexxer meddling things only.
+I MIGHT make . argument pipe syntax sugar be a macro somehow? Also | bar? But macros would need more power to support that.
+Also, I don't yet have plans for "macros with arguments" like C supports or anything of that nature, but one day post-launch I'll consider them.
+
+Compiler should support a flag mode where it outputs source that patiently explains all macro expansion.
+This output should be *valid* as a source file that renders indistinguishable assembler output from the original source file, but this illustrative expansion will NOT be internally used by default because doing so would mess up file names, line numbers, and columns for errors. (eg, compiling the expansion instead of original when it has a compiler error would give the same error(s), but point them out at different places in the source due to what expansion changes).
+
+`Import "file"` (syntax still being workshopped)
+would expand and render into this diagnostic output as:
+```
+-- Import "file"
+-- Source imported from "file":
+contents of imported file
+-- End of source imported from "file".
+```
+While any line with macro use would render into this diagnostic output as:
+Fully expanded line
+-- macro expanded from: final macro replacement unrolled
+-- macro expanded from: one before that
+-- ...
+-- macro expanded from: original line
+
+Example (just for fun I am here assuming the ". argument pipe is a macro" option):
+```
+Macro.Starboard .Math.Plus plus
+Macro.Starboard .Math.Minus minus
+Macro.Starboard .Macro.Port is
+Macro.Starboard .Macro.Starboard becomes
+
+Macro.Starboard (Math.Minus 3 1 ) anotherResult
+-- macro expanded from: Math.Minus 3 1 | .Macro.Starboard anotherResult
+-- macro expanded from: Math.Minus 3 1 becomes anotherResult
+-- macro expanded from: 3 | .Math.Minus 1 becomes anotherResult
+-- macro expanded from: 3 minus 1 becomes anotherResult
+```
+
+| (pronounced "bar") means the same thing as (macro-expands to? I'unno?) wrap stuff to the left in parentheses. But not stuff to the right.
+How far left does the expanded open parenthesis go? (beginning of command? Beginning of current Parenthesis level?) I am still trying to figure that out.
+
+It would be nice if I could arrange for errors found within macro expansions to name the position of the upper-most macro in the file, as well as show a diagnostic expansion like above and then show the position in the resulting expansion where the error occured.
+
+
 == Quick docs update
 * I need primordial Procedure to include not just argc/argv, but the environment variables as well.
 * IIUC, per http://asm.sourceforge.net/articles/startup.html (and this should also be true for x64) the stack on _start includes:
@@ -10,7 +535,7 @@
 * So I my primordial procedure will probably offer the environment variables as a List String
 ** And then some library function will offer to split that up into a Dict, but it's up to the user to invoke that.
 
-== Current status:
+== Current status(old):
 * I'm researching memory allocation strategies.
 ** The system calls in question appear to be brk (older) and mmap (newer).
 ** Sometimes you'll see "sbrk" talked about, but that's functionally just a C a wrapper around the brk syscall.
@@ -25,7 +550,7 @@
 (on lib_mb.s and full coverage testing)
 ** standard malloc/free/realloc algorithms put memory "tags" adjacent to the memory chunks they dole out. They also rely on the exact memory addresses as "handles", which lead to double free errors when the handles get improperly reused. Step 1: allocate, get handle. Step 2, free handle. Step 3, the allocation system (perhaps even during your free) winds up putting other allocated memory at that same location while defragging it. Step 4: you try to free the handle again. This might lead to another allocated chunk starting at that exact location to get freed, freeing memory other parts of your code (or libraries you call) rely upon, or it might try to free the middle of a block and produce very garbage results.
 ** Fuck literally everything about that, I demand the following qualities out of my internal allocation functions:
-*** Free must be idempotent.
+*** Free (internal; not language-user facing) must be idempotent.
 *** I think this can be done by requiring caller to maintain a handle separate from the memory address. Then an allocation handle need never be reused.
 **** One potential weakness I can consider is that, if these are 64 bit handles, idempotent free might be more difficult to guarantee after more than 16 quadrillion separate allocations.
 **** But I math out that a top tier PC today, with 2 overclocked CPU cores (total 10Ghz) doing nothing at all but allocating memory as fast as possible (with infinite ram? or a third/fourth CPU core continually frees memory back up again?) it would still take over fifteen (15) years before any process would reach its first handle collision at 16 quadrillion allocations performed.
@@ -87,9 +612,10 @@
 == gdb options:
 * `set disable-randomization off` is your friend. Esp if things segfault in the wild but behave sweet and innocent in gdb.
 * `layout split` is the ideal way to see decompiled source, stepi can step through the components of a macro here
-** CTRL-L cleans up the screen when STDOUT/STDERR got blatted too and messed up all the ncurses formatting.
+** CTRL-L cleans up the screen when STDOUT/STDERR get noisy and mess up all the ncurses formatting.
 ** Seriously tho.. would it kill gdb staff to just pipe tty through a subwindow in the ncurses layout? ;P
 * x/1bx <thing> (x)prints the (1)one (b)yte at that place in he(x).
+* p (char[<length>])<place> coughs up a string of predefined length.
 * gdb cheatsheet here https://users.ece.utexas.edu/~adnan/gdb-refcard.pdf
 ** which I've also archived to unison/dev/gdb-refcard.pdf
 
@@ -114,7 +640,8 @@
 
 == Cheat sheet for the System V x64 ABI used by linux:
 * Who owns which registers? (here parent=callER and child=callEE)
-** r0 = rax : owned by CHILD & Lowest 64 bits of integer return value & for variadic functions, AL must pass in upper bound of total number of float arguments, 0-8.
+** r0 = rax : owned by CHILD & Lowest 64 bits of integer return value & for variadic functions & SYSCALL identifier
+*** r0L = AL must pass in upper bound of total number of float arguments, 0-8.
 ** r1 = rcx : owned by CHILD & Integer Argument 4 ....i
 ** r2 = rdx : owned by CHILD & Integer Argument 3 ...i & highest 64 bits of integer return value, if applicable.
 ** r3 = rbx : owned by PARENT
@@ -162,24 +689,24 @@
   Position  |           Contents          | Frame
 ------------+-----------------------------+-----------
 8n+16(%rbp) | memory argument eightbyte n |
-    . . .   |            . . .            | Previous
-   16(%rbp) | memory argument eightbyte 0 |
+    . . .   |            . . .            | Previous
+   16(%rbp) | memory argument eightbyte 0 |
 ------------+-----------------------------+-----------
-    8(%rbp) |_______return_address________|
-    0(%rbp) |_____previous_%rbp_value_____|
-   -8(%rbp) |         unspecified         | Current
-            |            . . .            |
-    0(%rsp) |________variable_size________|
- -128(%rsp) |          red zone           |
+    8(%rbp) |_______return_address________|
+    0(%rbp) |_____previous_%rbp_value_____|
+   -8(%rbp) |         unspecified         | Current
+            |            . . .            |
+    0(%rsp) |________variable_size________|
+ -128(%rsp) |          red zone           |
 
 
 == My refined mission statement for MasterBlaster
 In descending order of implementational priority:
 * Compiles down to Elf64 assembly
 * Strongly functional: abusively wring all business logic out of the parts of the code that handle side effects (Procedures), and then force said logic into pure functions (Lambdas).
+* Even less punctuation than Elm
 * YAGNI: Language is both strict and minimal in order to encourage making impossible or undesirable states unrepresentable.
 * Compiler gives gratuitously friendly error messages 
-* Even less punctuation than Elm
 * Maybe one day can cross-compile to other platforms? What do I care. xD
 
 == My original Mission Statement post:
@@ -201,10 +728,6 @@ I feel like some things that would be nice to add to and to address in the roadm
 I’m not aware of any other languages that can offer all three of those guarantees simultaneously (especially the one about YAGNI minimalism), so that represents the Elm-shaped hole that I see in the server-side arena. :slight_smile:
 <<<<<<<<<<
 
-== Have so far:
-Simple C compiler that can accept a single C function, with no arguments, must be "main", with one statement.
-Statement must be "return", expression returned may be a literal integer, or else one of three unary operators prefixing another expression. Thus a linear stack of unaries can be expressed.
-
 == Reverse engineer a C file:
 gcc -S -O3 -fno-asynchronous-unwind-tables 01_return2.c
 
@@ -217,17 +740,19 @@ Now I wish to bend development towards MasterBlaster syntax.
 
 == Ultimate plans:
 1. minimal punctuation.
-** No curly brace code blocks, though I might allow BEGIN/END keywords.
+** No curly brace code blocks, though I might utilize BEGIN/END keywords.
 *** Elm doesn't even need those, but Elm also relies upon meaningful whitespace and I would like to .. if not "eliminate" that, then at least gut it a lot.
+*** Current status on that is I have newlines as meaningful for the end of commands, except that some symbols like = suppress the meaningfulness of any block of whitespace including newline(s) immediately following them.
 ** # No List or Record braces, I'll use explicit constructors instead.
 *** I am at the very least delaying this goal. I will limit Tuple's to word constructor though.
 ** Will need periods in method names, like `List.new`.
 ** Obviously also decimal punctuations. - preceeding a negative number, scientific notation, various common base notations, etc.
-** String literal punctuation. I'll accept only apostrophes for single-line literal strings. I will leave double quotes and backticks reserved for future considerations.
+** String literal punctuation. I'll accept only double quotes for single-line literal strings. I will leave single quotes and backticks reserved for future considerations. (chose double over single due to apostrophes very frequently being used in text)
 ** Unlike Elm I think I *would* like to handle template interpolation (like javascript backticks et al), eventually. Implementational details to be decided.
 ** I might prefer SET/Set keyword or similar over assignment.
+*** Am currently exploring lexxer macros and how *much* let assignment weight they can carry
 ** I will probably handle arithmetic and math/logic/boolean/bitwise operators via method invocation as well.
-** Primordial function will be a first class procedure named "main". Define it wherever you like, it will be a compiler error for the root of an application to not have one defined.
+** Primordial function will be a first class procedure (update, probably lambda) named "main". Define it wherever you like, it will be a compiler error for the root of an application to not have one defined.
 ** For now will accept list of argv, and probably require (my syntactic equivilent of) _ pattern matching until I can even support lists.
 ** argv.0 (I'll try to support indexing through integer literal methods maybe?) will be the application name, argv.1 and beyond the POSIX arguments.
 
@@ -235,19 +760,19 @@ Now I wish to bend development towards MasterBlaster syntax.
 *** Hmm.. `Never`? No.. not until I prove that I can understand that concept.
 *** Properties: a variable name that can always be assigned to, but will never actually receive the assignment.. so you can do so as many times as you'd like in the same scope.
 *** Pattern matching it in a case statement (and thus all equality tests) always result in a boolean True value.
-*** `Wildcard`? `Irrelevant`? `Void`?
-*** I'll go with `Wildcard` until a more clear keyword gets made available to me.
+*** As expanded upon below in `Type system considerations`, I'm going with the Never type and will allow the `never` constant to act as underline, as well as any constant matching /^never[A-Z0-9_].*/.. eg the word "never" followed by something that's not another lowercase letter.
 
 ** Not certain yet how I'd like to handle capitalization.
 *** So far going with "methods are capitalized bouncycaps"
 *** Although, record keys becoming methods feel like they might complicate that picture.
 *** Unless I make it a less-than-strictly-enforced convention and *encourage* capital bouncy record names?
+*** I'd like types/ADTs to also be capitalized.
 
 ** I will accept variable names that begin with numbers, if and only if they are referred to in some special way such as the child of a module.
 *** That said, how do I plan to support dictionaryVariable.Record if the former is not a Module?
 
 ** Question: how will I "Set" a function that accepts arguments? Where does the list of arguments end, and the function body begin?
-*** I'll probably have to use parentheses here.
+*** I'll probably have to use parentheses or begin/end blocks here.
 *** That might become unavoidable in grouping simple expressions as well. For example, "defining" a list.. where does that list end?
 *** Elm "anonymous function" syntax doesn't help here either, and instead drags to light a different problem:
 
@@ -256,25 +781,21 @@ Now I wish to bend development towards MasterBlaster syntax.
 *** User *must* put in some placeholder where the type annotation belongs
 *** And then compiler will both chide you and try to derive the type annotation for you simultaneously. So especially lazy devs can place-holder everything up, and then have some utility fill those in if they choose.
 *** Annotation only required on assignment.. but that includes record field assignment.
+**** If I go with lexxer macro erstwhile assignment, then I don't know how to enforce type annotation on that.
 
 ** BUT! .. how am I meant to do this with anonymous functions then? Especially when, for example, anon function gets fed directly as an argument into another function, or any other alternative to a direct variable setting/binding?
 *** Also, this fanatacism would require setting up type annotations at the *caller return* of every function, wouldn't it?
 *** One idea to consider (not yet sold on, just thought of and also haven't yet been sold against..) type annotation only required at variable bind/set/assignment.
 
-** How will I handle I/O and side effects?
-*** Elm uses Tea, and kind of abstracts things away beneath their "main" function into core packages.
-*** I probably want to do something A LITTLE bit like Haskel, where I have a class of functions that are side effectful, and tainted, and probably live between invocation land and pure function land somehow.
-*** I haven't yet decided how I intend to weave that into my `main ([List]argv) = return [Integer]x` primordial procedure, either.
-*** Maybe I want to go so far as to *call* a subroutine that deals in side effects some name that is not "function", so that the only things called "function" in my language are the pure ones?
-*** Naming decided: Procedure (labotomized coding space where side effects are allowed) vs Lambda (turing complete coding space where side effects are not allowed)
-
 ** Do I want any "tuple" type, or do I want to encapsulate that completely in a kind of function instead? Probably the latter.. I think tuple in Elm and elsewhere is just another function-datatype that has extra sugar.
 *** So, I'll have to further research Marie Kondo'ing that sugar.
 
-** I'm toying with making period a valid alias for |>
+** I'm toying with making period a valid alias for |> (argument pipe.. `a.b c` == `b a c`)
 *** And either period and/or :: for method namespaces.. I cannot decide which to either allow or require.
-*** Can I make an imported module namespace be a "function" somehow, so that . == |> becomes a conceptually valid thing to do to it?
+**** Newest brainstorms favor overloading period for this too.
+*** Can I make an imported module namespace be a "function" somehow, so that . == |> becomes a conceptually valid thing to do to it? 🤔
 *** How will module namespaces use of . co-exist with record fields et al?
+**** Newest brainstorms rely on Modules and Types using bouncycase: if the token following the period is capital, then period and token are lexxed as continuing part of the previous token.
 
 ** About procedures:
 *** Perhaps they can be encapsulated as first class data elements, just as lambdas are, and then those can be passed into procedures/lambdas as arguments?
@@ -326,7 +847,7 @@ Now I wish to bend development towards MasterBlaster syntax.
 *** @-8 Unsigned32BitInteger Type of object #0. Type 0 means "available for reuse". Types < 256 have hard-coded meanings, >255 are user-defined types and index into a types table .. somewhere on chunk #0 (eg, primordial chunk). I haven't designed enough language to support user-defined types yet anyway, I'm still working on scopes of any kind as of this writing lel.
 **** This Unsigned32BitInteger makes the design decision that users will not be allowed to dream up more than four billion user-defined types in a single application. Since MasterBlaster defines literally all types at compiler time, this sounds utterly fair to me.
 *** @-16 Unsigned32BitInteger + Pointer32 size and location inside this chunk of raw data content for object #0. If size is zero, then pointer content is literally undefined (eg not even written thus contains garbage). Root object 0:0 is one example of an object that has zero content size.
-*** @-32 Unsigned32BitInteger + Pointer32 size and location inside this chunk of metadata  for object #0. Size cannot be zero, as every object has either children or parents to declare at minimum. Even Root object has children, even allocated atomic data types have parents. Local atomic data types get to live directly inside the content of their parent scope objects (which are functionally static dictionaries), and thus do not even appear in the chunk allocation table on their own.
+*** @-32 Unsigned32BitInteger + Pointer32 size and location inside this chunk of metadata for object #0. Size cannot be zero, as every object has either children or parents to declare at minimum. Even Root object has children, even allocated atomic data types have parents. Local atomic data types get to live directly inside the content of their parent scope objects (which are functionally static dictionaries), and thus do not even appear in the chunk allocation table on their own.
 *** repeat for more allocated objects
 ** Calling a function, such as via a library, will bequeath access to the caller's Chunk (and potentially a list of all of the caller's chunks) onto the callee isntead of allocating a new one, obv. So it is App entry that allocates initial Chunk, not dynamic library calling.
 ** Once a Chunk is exhausted, another one of the same size will need to be allocated.
@@ -350,12 +871,32 @@ Now I wish to bend development towards MasterBlaster syntax.
 ** All "user"-allocated data objects watershed their ancestory to at minimum the scope of the highest parent object that the "user" began allocating from. Scope objects parent either directly to the Root object, or via other scopes to the Root object. Which of these is TBD and rely on how I will eventually decide that closures work. "User" above is in quotes because those decisions are really made by the compiler, but from this part of the algorithm's perspective such decisions are just as capricious as if some human coder actually made those decisions.
 ** Scope objects delink from their calling parent (parent scope or root object) as their OS stack reference is popped. "user" allocations delink from their parent when the "user" manually releases them. Other kinds of delinking happen in a cascade during garbage collection.
 ** When a delinking begins, the following recursive algorithm is followed by the object being delinked from its parent, regardless which object was used to initiate the action. Let's call this child object E and the parent delinking from it P.
-*** Looking for root: First iterate over each remaining parent.
-**** For each parent, iterate "Looking for root" over its parents depth-first, and keep a set of "objects seen thus far" starting with oneself.
-**** Any parent one wants to consider must be compared against this set, and skipped if match is found.
-**** Any parent one does begin to consider gets added to the set while considering its own ancestry.
-**** If any parent finds Root, then the search instantly ends and we skip instantly to erasing the P->E link. First P child link is erased, then E parent link to P. Because we know that E has alternate ancestry to root, no further action is required and the delink operation is complete.
-**** If all ancestory of E (save P) has been exhausted with no connection to root, then E will erase the P->E link. First P child link is erased, then E parent link to P. Finally E will begin the self-destruction process.
-**** E will ignore its remaining parents and assume those must link back to its children.
-**** E will next unlink each of its children in turn, which recurses this entire algorithm. Descendants with alternate ancestories to root will survive now unlinked from their ancestory to E, while those without will also begin self-destructing. We must assume that all of E's remaining parents are in the last camp since they also had no ancestory of their own to Root.
-**** Once E has cut all ties to its children, and to P, and assumes all other parental ties have been cut by its looped children, E can finally deallocate from the chunk table, and return to whatever calling process began the delinking.
+*** Looking for root: First iterate over each remaining parent (not counting the one being delinked).
+**** For each parent, iterate "Looking for root" over its parents depth-first, and keep a blacklist set of "objects seen thus far" starting with oneself.
+**** Parent being delinked is NOT pre-emptively added to blacklist.
+**** Any parent one wants to consider must be compared against this blacklist, and skipped if match is found.
+**** Any parent one does begin to consider gets added to the blacklist while considering its own ancestry.
+**** Any parent one finds that is marked as currently unloading gets added to blacklist and then skipped.
+**** If any parent finds Root, then the search instantly ends. So we skip immediately to erasing the P->E link, knowing that E has valid alternate ancestery. First P child link is erased, then E parent link to P. Because E has alternate ancestry to root, no further action is required and the delink operation is complete.
+------
+**** If all ancestory of E (save P) has been exhausted with no connection to root, then E will check to see if P is unloading. If *not*, then it will erase the P->E link. First P child link is erased, then E parent link to P.
+**** Finally E will mark itself as unloading in the allocation table, and then also begin the self-destruction process.
+**** Beginning self destruction means that all current trees of links BOTH up- AND downstream from E are instantly "invalid" thus no more links need to be explicitly severed.
+**** E will ignore its remaining parents and assume those are already amidst self-destruction, or else will soon be as looped children.
+**** E will next call the unlink routine upon each of its children in turn, which recurses this entire algorithm. EG: any called child with valid alternate ancestry is trusted to erase both its link to parent and this objects child link back to it, and any child without will enter self-destruct and thus not need to delink. We must assume that ALL of E's remaining parents are in the last camp (already self-destructing or else about to once the loop closes) since they also had no ancestory of their own to Root. EG: E might have *some* descendants that survive, but none of those can possibly be part of a loop that loops back through any of E's remaining parents.
+**** Since all children have been recursed, and any remaining downstream links to survivers have thus been severed, on return E can finally deallocate from the chunk table, and return to whatever calling process began the delinking.
+
+== Type system considerations:
+* 0 type (aka bottom, uninhabited) is Never, with blackhole constant `never` and constant schema /^never[^a-z].*/. Never type will be used for divergent functions (functions that simply "never" return to their caller) and some kinds of ADT math that I don't understand yet, and the never(..) constant will be used for discarding inbound arguments. It might also get used in short circuited boolean expressions like `(do thing) or never`, that will take some research and cooking though.
+I will NOT use Never/never(..) for case statement defaults, how I'll do that is TBD. I do know that if I allow case defaults, they will be allowed in prototype code but not allowed in production code.
+** Users can type alias Never to give new names to the same idea.
+* 1 type is Unit, whose constant is `unit`. Since I don't support naked tuples, this is required.
+** Users can create an erstwhile alias to Unit with any single constructor ADT such as `type a = b`.
+* Top supertype is Top, with pattern-match constant `wildcard` such that `x == wildcard` evaluates to true for any x of any type. It has no predefined constants, but it does have an alias schema `[a-z].*` to act as unconstrained type variable.
+** I *might* end up using this for the case statement default match.. I'unno.
+* Higher Kinded Types? I don't think I want any primordial ones unless users can create them too.. but I'll have to learn a maximal amount about them before just throwing the concept incorrectly around.
+** The closest approximation that I can think of right now would be some syntax to map "subtypes" into children of "supertypes".
+*** Best idea I can think of is: `SuperType Number = Unsigned64BitInteger | Signed64BitInteger | ...`
+*** Then the supertype would only ever be allowed as a type variable signature constraint. Similar to Top supertype except
+
+Type theory's "notational equality" appears to be what I am experimenting to see if I can capture wholely in the lexxer with the Macro module.

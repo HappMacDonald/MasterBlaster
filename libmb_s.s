@@ -18,6 +18,21 @@ putMemoryProcedure:
   syscall
   ret
 
+# extern /*???*/ uint64_t getMemoryProcedure
+# ( /*rdi*/ char *messageBuffer
+# , /*rsi*/ uint64_t length
+# , /*rdx*/ uint64_t fileDescriptor
+# );
+.global getMemoryProcedure
+getMemoryProcedure:
+  mov %rdx, %rax # put file descriptor into temporary place
+  mov %rsi, %rdx # put length into newly vacated syscall arg2
+  mov %rdi, %rsi # put memory location into newly freed syscall arg1
+  mov %rax, %rdi # dig fd from temporary location and put into newly vacated syscall arg3
+  mov $sys_read, %rax # define syscall arg0
+  syscall
+  ret
+
 # Accepts arg1(%rdi)=number to convert to hex string, and arg2(%rsi)=16 byte buffer space.
 # Returns ret1(%rax)=pointer to inside of buffer where RIGHT-ALIGNED answer sits,
 # and ret2(%rdx)=total length of the answer string. That is not null-terminated.

@@ -311,6 +311,8 @@ sub ParseExpression
     my $mantissa = $arguments->{mantissa};
     my $exponent = $arguments->{exponent} || 0;
 
+    $mantissa =~ s/_//g;
+    $exponent =~ s/_//g;
     my $magnitude = Math::BigInt->from_base($mantissa, $base);
 # CORE::say
 #   Dumper

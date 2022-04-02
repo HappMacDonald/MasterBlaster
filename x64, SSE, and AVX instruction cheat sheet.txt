@@ -1,0 +1,145 @@
+== External resources to bookmark
+https://www.agner.org/optimize/
+https://softpixel.com/~cwright/programming/simd/sse.php
+
+== Checking for capabilities
+=== CPUID
+* ?
+=== FXSAVE
+Since setting a reserved bit in MXCSR causes a general protection fault, we need to be able to check the availability of [DAZ (Force Denormals to Zero)] without causing problems. To do this, one needs to set up a 512-byte area of memory to save the SSE state to, using fxsave, and then one needs to inspect bytes 28 through 31 for the MXCSR_MASK value. If bit 6 is set, DAZ is supported, otherwise, it isn't.
+
+
+== SERIALIZE — Serialize Instruction Execution
+(SSE4.2?)
+Arguments: none
+Before the next instruction is fetched and executed, the SERIALIZE instruction
+ensures that all modifications to flags, registers, and memory by previous instructions are completed, draining all
+buffered writes to memory. This instruction is also a serializing instruction as defined in the section “Serializing
+Instructions” in Chapter 8 of the Intel® 64 and IA-32 Architectures Software Developer’s Manual, Volume 3A.
+SERIALIZE does not modify registers, arithmetic flags or memory.
+The availability of the SERIALIZE instruction is indicated by the presence of the CPUID feature flag SERIALIZE, bit
+14 of the EDX register in sub-leaf CPUID:7H.0H.
+
+== Suffixes used in many of the ops below:
+-- si256(SIgned 256-bit integer)
+-- si128(SIgned 128-bit integer)
+-- ps(Packed Single-precision 32bit floats): Almost exclusively implies vertical functions,
+---- such as unary on every item in a vector or binary between each matching item in two vectors.
+-- ss(Scalar Single-precision 32bit float)
+---- do unary or binary work to only the "lowest" binary32 element, top [3,7,15] remain unchanged.
+-- pd(Packed Double-precision 64bit floats)
+-- ss(Scalar Double-precision 64bit float)
+---- do unary or binary work to only the "lowest" binary32 element, top [3,7,15] remain unchanged.
+
+
+
+== Arithmetic
+I see VERTICAL Operation Names for binary32 floats (for up to an unknown variant of SSE) matching the following:
+-- "Vertical" means every element in a register is treated as though it were its own register, walking in step with the other elements getting the same treatment.
+* Prefix:
+-- add sub(tract) mul(tiply) div(ide) rcp(ReCiPorical)
+-- sqrt(SQuare RooT) rsqrt(Reciporical SQuare RooT)
+-- max(imum, binary vectors) min(imum, same) 
+-- andn(A & !B) and or xor (only ps suffix for the ops listed on this line)
+* Suffixes: I can only confirm that ps and ss work for all permutations above.
+
+Also the following HORIZONTAL integer operations:
+-- "Horizontal" means that all of the elements in a SINGLE register interact directly with one another in some fashion.
+* pavgb  (Packed integer AVeraGe 8bit Bytes)
+* pavgw  (Packed integer AVeraGe 16bit Words)
+* psadbw (Packed integer Sum of Absolute Differences, 8bit Byte input, 16bit Word output)
+* pextrw (Packed integer EXTRact a single 16bit Word)
+* pinsrw (Packed integer INSeRt a single 16bit Word)
+* pmaxsw (Packed integer MAXimum of Signed 16bit Words)
+* pmaxub (Packed integer MAXimum of Unsigned 8bit Bytes)
+* pminsw (Packed integer MINimum of Signed 16bit Words)
+* pminub (Packed integer MINimum of Unsigned 8bit Bytes)
+* pmovmskb (Packed integer ..?) "builds mask byte from top bit of [8,16,32] byte values."
+* pmulhuw  (Packed integer MULtiply, output= High 16bits (somehow?), input= Unsigned 16bit Words)
+* pshufw   (Packed integer SHUFfle 16bit Word values)
+-- Shuffle takes a source and a dest SIMD register, as well as an 8bit immediate value describing how to shuffle the elements
+
+== Comparison (Vertical)
+* Prefix
+-- cmp(CoMPare) comi(? no midfix) ucomi(? no midfix, and QNaN doesn't croak)
+* Midfix
+-- eq(EQual) lt(Less Than) le(Less than or Equal) ne (Not Equal)
+-- nlt (Not Less Than) nle (Not Less than or Equal to)
+-- ord (Ordered .. what's that?) unord (Unordered .. ditto?)
+* Suffix ps/ss like under Arithmetic.
+
+== Conversion
+* cvtpi2ps(ConVerT Packed 32bit dword Integer (2 of them) into Packed binary32 floatS(!💢))
+-- Converts 2 32bit integers to 32bit floating-point values. Top [2,6,14] values remain unchanged.
+cvtps2pi(ConVerT Packed binary32 floatS(!💢) (2 of them) into Packed 32bit dword Integer)
+-- Rounding mode not documented?
+-- Top [2,6,14] values remain unchanged.
+cvtsi2ss(ConVerT ..S? a 32bit dword Integer in2(!💢) .. uh .. the "ss" prefix (a single binary32 float))
+-- Top [3,7,15] values remain unchanged.
+cvtss2si(ConVerT an "ss" prefix (a single binary32 float) in2(!💢) a 32bitS(!💢) dword Integer)
+-- Rounding mode not documented?
+-- Top [3,7,15] values remain unchanged.
+cvttps2pi(ConVerT w/Truncate Packed binary32 floatS(!💢) (2 of them) into Packed 32bit dword Integer)
+-- Rounding mode is "to zero" aka drop fractional part.
+-- Top [2,6,14] values remain unchanged.
+cvttss2si(ConVerT w/Truncate an "ss" prefix (a single binary32 float) in2(!💢) a 32bitS(!💢) dword Integer)
+-- Rounding mode is "to zero" aka drop fractional part.
+-- Top [3,7,15] values remain unchanged.
+
+== State
+State:
+* fxrstor - Restores FP and SSE State.
+* fxsave - Stores FP and SSE State.
+* ldmxcsr - Loads the mxcsr register.
+* stmxcsr - Stores the mxcsr register.
+
+== Load/Store:
+movaps(MOVe w/Alignment 128bits. "ps" suffix means "whole register" vertical
+-- Documentation does not clarify how this instruction actually operates.
+movhlps(MOVe High to Low .. "ps" means affects whole register, despite that this sounds horizontal.)
+-- "Moves high half to a low half." OK but in the same register (horizontal) or between two registers (vertical)?
+-- What happens to the source data, is it duplicated or wiped or undefined?
+movlhps(MOVe Low to High .. "ps" means affects whole register, despite that this sounds horizontal.)
+-- "Moves low half to upper halves.?".. so even the writer of these docs has no idea what is happening here. ;P
+movhps(MOVe into High .. "ps" suffix means "whole register" vertical, despite this only affecting high half of register.
+-- "Moves 64bit value into top half of an xmm register."
+-- What do wider bit registers do with these instructions I wonder?
+movlps(MOVe into Low .. "ps" suffix means "whole register" vertical, despite this only affecting low half of register.)
+-- "Moves 64bit value into bottom half of an xmm register."
+movmskps
+-- "Moves top bits of single-precision values into bottom 4 bits of a 32bit register."
+movss(MOVe .. "ss" prefix means vertical move of only bottom 32 bit element.)
+-- "Moves the bottom single-precision value, top 3 remain unchanged if the destination is another xmm register, otherwise they're set to zero."
+-- I assume "otherwise they're set to zero" refers to the top 3x32bit elements of the destination, not of the source?
+-- What happens if source is memory and destination is register?
+-- I really want the argument semantics on this one, as well as info on how wider registers (vex, evex, fuvex, etc) treat the command.
+movups(MOVe Unaligned 128bits. "ps" suffix means "whole register" vertical)
+maskmovq(MASK MOVe 64bit Quadword)
+-- "Moves a 64bit value according to a mask." No other details yet.
+movntps(MOVe Non Temporal (eg, bypass the cache) a "ps" suffix (128 bit value vertically) from register to RAM.)
+movntq(MOVe Non Temporal (eg, bypass the cache) a 64bit Quadword from register to RAM.)
+movnti(MOVe Non Temporal (eg, bypass the cache) a 32bit Integer)
+
+== Shuffling:
+shufps - Shuffles 4 single-precision values. Complex.
+unpckhps - Unpacks single-precision values from high halves. (?💢)
+unpcklps - Unpacks single-precision values from low halves. (?💢)
+
+== Cache Control:
+prefetchT0 - Fetches a cache-line of data into all levels of cache.
+prefetchT1 - Fetches a cache-line of data into all but the highest levels of cache.
+prefetchT2 - Fetches a cache-line of data into all but the two highest levels of cache.
+prefetchNTA - Fetches data into only the highest level of cache, not the lower levels.
+sfence - Guarantees that all memory writes issued before the sfence instruction are completed before any writes after the sfence instruction.
+-- Sounds a lot like SERIALIZE
+
+== Changing context between modes? (may not be all that important for modern code, who knows?)
+* VZEROUPPER
+-- The instruction zeros the bits in position 128 and higher of all YMM registers. The lower 128-bits of the registers (the corresponding XMM registers) are unmodified.
+-- This instruction is recommended when transitioning between AVX and legacy SSE code - it will eliminate performance penalties caused by false dependencies.
+-- No idea if there is an AVX512 / ZMM equivilent function.
+* VZEROALL Zero all 256bit YMM registers. In 64bit mode, this zeros 16 registers. No idea what happens with ZMM upper halves, or with YMM/ZMM #16-31?
+-- Also no idea if there is an AVX512 / ZMM equivilent function.
+
+== SSE4.2 String functions sound flexible as all hell! :D
+https://www.strchr.com/strcmp_and_strlen_using_sse_4.2

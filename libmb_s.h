@@ -3,6 +3,7 @@
 STDIN = 0
 STDOUT = 1
 STDERR = 2
+sys_read = 0
 sys_write = 1
 # crusade against magic numbers: Explicit Intent Edition
 singleCharacterLength = 1
@@ -22,6 +23,7 @@ CFunctionReturn2 = rdx
 
 # Macros
 
+// Does not return.. yields control back to the calling shell.
 .macro systemExitMacro returnValue=0
   putNewlineMacro
   mov $60, %rax
@@ -29,6 +31,7 @@ CFunctionReturn2 = rdx
   syscall
 .endm
 
+// Clobbers child-owned values
 .macro putNewlineMacro fileDescriptor=$STDOUT
   mov $sys_write, %rax
   mov \fileDescriptor, %rdi
@@ -41,14 +44,25 @@ aNewLine\@:
 putNewlineMacroEnd\@:
 .endm
 
-.macro putMemoryMacro messageLocation:req length:req fileDescriptor=$STDOUT
-  mov $sys_write, %rax
+// Clobbers child-owned values
+.macro getMemoryMacro messageLocation:req length:req fileDescriptor=$STDIN
   mov \fileDescriptor, %rdi
   lea \messageLocation, %rsi
   mov \length, %rdx
+  mov $sys_read, %rax # define syscall arg0
   syscall
 .endm
 
+// Clobbers child-owned values
+.macro putMemoryMacro messageLocation:req length:req fileDescriptor=$STDOUT
+  mov \fileDescriptor, %rdi
+  lea \messageLocation, %rsi
+  mov \length, %rdx
+  mov $sys_write, %rax
+  syscall
+.endm
+
+// Clobbers child-owned values
 .macro putLiteralMacro message:req fileDescriptor=$STDOUT
   putMemoryMacro messageLocation=putsMessage\@(%rip),length=$putsMessage\@Length,fileDescriptor=\fileDescriptor
 	jmp putsEnd\@
@@ -57,5 +71,30 @@ putsMessage\@:
   putsMessage\@Length = . - putsMessage\@
   .align 8
 putsEnd\@:
+.endm
+
+.macro SSE42_InkStamp0xFF stamp=%xmm15
+  pcmpeqd	\stamp, \stamp
+.endm
+
+.macro SSE42_InkStamp0x00 stamp=%xmm14
+  pxor	\stamp, \stamp
+.endm
+
+//destinationAddress must be a naked rip relative integer.
+// eg 123 gets interpreted as 123(%rip)
+//Uses stamp(xmm register), clobbers r11.
+.macro SSE42_memset128BitBlocks stamp=%xmm15 destinationAddress:req repeat=1 currentIndex=0
+  // .if \currentIndex-\repeat
+da16 = destinationAddress + 16
+  movaps \stamp, \destinationAddress(%rip)
+  movaps \stamp, \da16(%rip)
+  // SSE42_memset128BitBlocks stamp=\stamp,destinationAddress=\destinationAddress,repeat=\repeat,currentIndex="(\currentIndex+1)"
+  // .endif
+.endm
+
+// This is an alias: alternate name
+.macro SSE42_memset16ByteBlocks stamp=%xmm15 destinationAddress:req repeat=1 currentIndex=0
+  SSE42_memset128BitBlocks stamp=\stamp,destinationAddress=\destinationAddress,repeat=\repeat,currentIndex=currentIndex
 .endm
 

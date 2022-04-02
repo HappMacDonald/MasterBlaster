@@ -10,7 +10,6 @@ use constant
 };
 use Data::Dumper;
 use JSON;
-use Math::BigInt lib => 'GMP';
 use List::Util qw(min max);
 use POSIX qw(floor ceil round);
 

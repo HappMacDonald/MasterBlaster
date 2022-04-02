@@ -41,10 +41,14 @@ is
 );
 
 trap { Error('msg', $position, 'a', 'b'); };
-is($trap->stderr, "\nmsg\nExpected: a\nFound: b\nAt Line 1, Column 2\n\n", 'Error message with position, expected, and found');
+is
+( $trap->stderr
+, "\nmsg\nExpected: a\nFound: b\nAt Line 1, Column 2\n\n"
+, 'Error message with `position`, `expected`, and `found`'
+);
 
 trap { Error('msg', undef, 'a', 'b'); };
-is($trap->stderr, "\nmsg\nExpected: a\nFound: b\n\n", 'Error message with just expected and found');
+is($trap->stderr, "\nmsg\nExpected: a\nFound: b\n\n", 'Error message with just `expected` and `found`');
 
 
 is(Plural(1, 'thing'), '1 thing', 'Plural');
