@@ -5,6 +5,7 @@ STDOUT = 1
 STDERR = 2
 sys_read = 0
 sys_write = 1
+sys_exit = 60
 # crusade against magic numbers: Explicit Intent Edition
 singleCharacterLength = 1
 
@@ -26,7 +27,7 @@ CFunctionReturn2 = rdx
 // Does not return.. yields control back to the calling shell.
 .macro systemExitMacro returnValue=0
   putNewlineMacro
-  mov $60, %rax
+  mov $sys_exit, %rax
   mov $\returnValue, %rdi
   syscall
 .endm
@@ -47,7 +48,7 @@ putNewlineMacroEnd\@:
 // Clobbers child-owned values
 .macro getMemoryMacro messageLocation:req length:req fileDescriptor=$STDIN
   mov \fileDescriptor, %rdi
-  lea \messageLocation, %rsi
+  leaq \messageLocation, %rsi
   mov \length, %rdx
   mov $sys_read, %rax # define syscall arg0
   syscall

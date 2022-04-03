@@ -85,7 +85,7 @@ unsignedIntegerToStringBase16:
 # arg4(%rcx) left side of answer, copies to ret1(%rax) at the end.
 # extern struct MasterBlasterString unsignedIntegerToStringBase10
 # ( /*rdi*/ uint64_t valueToConvert
-# , /*rax*/ char resultBuffer[20] // Largest possible results are 20 digits
+# , /*rsi*/ char resultBuffer[20] // Largest possible results are 20 digits
 # );
 .global unsignedIntegerToStringBase10
 unsignedIntegerToStringBase10:
