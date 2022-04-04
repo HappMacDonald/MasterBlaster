@@ -87,7 +87,7 @@ x UnsignedInteger63:equal
 x UnsignedInteger63:greaterThan
 ** EG: (1 2 3 4) greaterThan (1 2 FALSE)
 x UnsignedInteger63:bitShiftDownZeroPad
-** [1] Actual outcome: all lanes of subject get shifted by number of bits specified by ONLY LANE 1 of the bitshift value. ;P)
+** [1] I bypassed SIMD and used Scalar registers to win true lane independance in the SSE version. I'm hoping AVX+ will be back in my corner again, though.
 x UnsignedInteger63:bitShiftUpZeroPad [^1]
 x UnsignedInteger63:bitRotateDown [^1]
 x UnsignedInteger63:bitRotateUp [^1]
@@ -186,7 +186,7 @@ Ex: (1 2 3 4 3 1) dup -> (1 2 3 4 3 1 1)
 x exchange
 swaps top two values in stack
 Ex: (1 2 3 4 3 1) exch -> (1 2 3 4 1 3)
-? index
+x index
 removes top of stack as argument "n:UnsignedInteger63". Then finds the nth item in pop order, leaves it in place, but pushes a duplicate of it to the top of the stack.
 Ex: (1 2 3 4 3) index -> (1 2 3 4 2)
 ? roll

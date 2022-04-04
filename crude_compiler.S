@@ -17,6 +17,7 @@
 #define DATA_SIZE_IN_BITS 64
 #define DATA_SIZE_IN_BITS_MINUS_ONE 63
 #define DATA_METASIZE_IN_BITS 6 // how many bits long is the number describing the size
+#define DATA_SIZE_IN_BYTES 8
 
 // Linux ABI Syscall identifiers
 // Later expansion to Windows/BSD/Mac will use .ifdef to define these per platform.
@@ -40,23 +41,31 @@
 
 // sensitive to SIMD_WIDTH :P  I'm too lazy to look up how to do gas variable arithmetic right now.
 #define STACK0 (%STACK_POINTER)
+#define STACK0_5 8(%STACK_POINTER)
 #define STACK1 16(%STACK_POINTER)
+#define STACK1_5 24(%STACK_POINTER)
 #define STACK2 32(%STACK_POINTER)
+#define STACK2_5 40(%STACK_POINTER)
 #define STACK3 48(%STACK_POINTER)
+#define STACK3_5 56(%STACK_POINTER)
 #define STACK4 64(%STACK_POINTER)
+#define STACK4_5 72(%STACK_POINTER)
 #define STACK5 80(%STACK_POINTER)
+#define STACK5_5 88(%STACK_POINTER)
 #define STACK6 96(%STACK_POINTER)
+#define STACK6_5 104(%STACK_POINTER)
 #define STACK7 112(%STACK_POINTER)
+#define STACK7_5 120(%STACK_POINTER)
 
 .data
 // Align to start of a cache line. (or center of a very large one perhaps?)
 .balign 64
 .global ALL_LANES_0x01
 ALL_LANES_0x01:
-  .quad 1,1 
-  .quad 1,1 
-  .quad 1,1 
-  .quad 1,1 
+  .quad 1,1
+  .quad 1,1
+  .quad 1,1
+  .quad 1,1
 
 .global ALL_LANES_0x3F
 ALL_LANES_0x3F: // That's 63dec, or 0011 1111 binary
@@ -135,8 +144,6 @@ COLON:
 .macro ScalarBroadcastToSIMD scalarRegister:req receiveRegister:req
   pinsrq $0, \scalarRegister, \receiveRegister
   pinsrq $1, \scalarRegister, \receiveRegister
-  // temp lane 1 -> receive lane 1, receive lane 1 -> receive lane 2
-  // shufpd $0, \tempRegister, \receiveRegister
 .endm
 
 // Gathers all of the Integer64 data found at each memory location in each lane of indexRegister and loads those into the same lanes of receiveRegister.
@@ -198,7 +205,13 @@ COLON:
   // turn into memory offset depths into the stack
   psllq $SIMD_META_WIDTH, %xmm0
   // Load stack pointer into xmm1
-  ScalarBroadcastToSIMD scalarRegister=%rsp,receiveRegister=%xmm1
+  // ScalarBroadcastToSIMD scalarRegister=%rsp,receiveRegister=%xmm1
+  // least significant half gets most recent data lane
+  pinsrq $0, %rsp, %xmm1
+  // most significant half will be offset into lane 2
+  addq $DATA_SIZE_IN_BYTES, %rsp
+  pinsrq $1, %rsp, %xmm1
+  subq $DATA_SIZE_IN_BYTES, %rsp
   // add offsets, yielding target locations in xmm0.
   paddq %xmm1, %xmm0
   SIMDGather indexRegister=%xmm0,receiveRegister=%xmm0
@@ -297,26 +310,30 @@ STACK1
 .endm
 
 // STACK1 will be shifted by STACK0%64 bits to the right (lesser significance).
-// as of 2022-04-03, tested and it appears as though the lane1 bit shift value is the only one that gets applied to all lanes of the bit shift subject. Disgusting! But something I'll have to live with fttb.
+// as of 2022-04-03, tested and it appears as though the lane1 bit shift value is the only one that gets applied to all lanes of the bit shift subject. Disgusting!
+// My reaction: get bent, for SSE level I'll do the bit shift operations in general registers. For AVX+ levels I'll probably shuffle vectors.. but I WILL get per lane shifts like Gawd intended, ISA be damned!
 // EG: (1 2 0x300 4) bitShiftDownZeroPad -> (1 2 0x30)
 // NEW top of stack => %xmm0
 // Normalized number of bits shifted (modulo number of data element bits) => %xmm1
 // 0x3F => xmm2
 // input 2 unit, output 1 unit
 // If output high bit set, then count must have been zero and source unchanged.
-// Tested and passed 2022-04-03T06:07-07:00
+// Tested and passed 2022-04-03T14:53-07:00
 .macro UnsignedInteger63bitShiftDownZeroPad
-  movdqa STACK1, %xmm0
-  movdqa STACK0, %xmm1
-  psrlq  %xmm1, %xmm0
-  movdqa %xmm0, STACK1
+  movq STACK0, %rbx
+  movq STACK1, %rax
+  shrx %rbx, %rax, %rax
+  movq %rax, STACK1
+  movq STACK0_5, %rbx
+  movq STACK1_5, %rax
+  shrx %rbx, %rax, %rax
+  movq %rax, STACK1_5
   SIMDPopDestructive
 .endm
 
 // STACK1 will be shifted by STACK0%64 bits to the left (greater significance).
-// as of 2022-04-02, not yet clear if STACK0 is interpreted as only first lane
-// applying to all lanes of STACK1, or if each lane gets it's own offset
-// from STACK0. :o
+// as of 2022-04-03, tested and it appears as though the lane1 bit shift value is the only one that gets applied to all lanes of the bit shift subject. Disgusting!
+// My reaction: get bent, for SSE level I'll do the bit shift operations in general registers. For AVX+ levels I'll probably shuffle vectors.. but I WILL get per lane shifts like Gawd intended, ISA be damned!
 // EG: (1 2 0x300 4) bitShiftUpZeroPad -> (1 2 0x3000)
 // NEW top of stack => %xmm0
 // Normalized number of bits shifted (modulo number of data element bits) => %xmm1
@@ -324,12 +341,16 @@ STACK1
 // input 2 unit, output 1 unit
 // If output high bit set, then overflow UnsignedInteger63.
 // Overflow without high bit set is also possible. Just.. don't overflow jeez.
-// Tested and passed 2022-04-03T06:07-07:00
+// Tested and passed 2022-04-03T14:53-07:00
 .macro UnsignedInteger63bitShiftUpZeroPad
-  movdqa STACK1, %xmm0
-  movdqa STACK0, %xmm1
-  psllq  %xmm1, %xmm0
-  movdqa %xmm0, STACK1
+  movq STACK0, %rbx
+  movq STACK1, %rax
+  shlx %rbx, %rax, %rax
+  movq %rax, STACK1
+  movq STACK0_5, %rbx
+  movq STACK1_5, %rax
+  shlx %rbx, %rax, %rax
+  movq %rax, STACK1_5
   SIMDPopDestructive
 .endm
 
@@ -337,9 +358,8 @@ STACK1
 // Bits shifted off the end of each item will be put into most significant
 // positions. No extra positions such as Carry are traded from
 // (but I think Carry does somehow get traded to? How that lanes I cannot be sure though..)
-// as of 2022-04-02, not yet clear if STACK0 is interpreted as only first lane
-// applying to all lanes of STACK1, or if each lane gets it's own offset
-// from STACK0. :o
+// as of 2022-04-03, tested and it appears as though the lane1 bit shift value is the only one that gets applied to all lanes of the bit shift subject. Disgusting!
+// My reaction: get bent, for SSE level I'll do the bit shift operations in general registers. For AVX+ levels I'll probably shuffle vectors.. but I WILL get per lane shifts like Gawd intended, ISA be damned!
 // EG: (1 2 0x34 4) bitRotateDown -> (1 2 0x4000000000000003)
 // NEW top of stack => %xmm0
 // Cobbered: %xmm1, %xmm2
@@ -348,23 +368,16 @@ STACK1
 // input 2 unit, output 1 unit
 // If output high bit set, then overflow UnsignedInteger63.
 // Overflow without high bit set is also possible. Just.. don't overflow jeez.
-// Tested and passed 2022-04-03T06:42-07:00
+// Tested and passed 2022-04-03T14:53-07:00
 .macro UnsignedInteger63bitRotateDown
-  movdqa ALL_LANES_0x01(%rip), %xmm3 // load constant 0x01 into xmm3
-  movdqa %xmm3, %xmm2 // 0x01 copied into xmm2
-  psllq $DATA_METASIZE_IN_BITS, %xmm3 // <<6bits = 0x40 aka 64 bit data size
-  movdqa %xmm3, %xmm7 // 0x40(xmm3) copied into xmm7
-  psubq %xmm2, %xmm7 // 0x40 - 0x01 = 0x3F -> xmm7
-  movdqa STACK0, %xmm2 // Number of bits to rotate
-  pand %xmm7, %xmm2 // Number of bits to rotate & 0x3F, only bottom 6 bits gets used.
-  movdqa STACK1, %xmm0 // Value to modify
-  movdqa STACK1, %xmm1 // Value to modify (copy)
-  psrlq %xmm2, %xmm0 // shift first copy right with zero fill
-  psubq %xmm2, %xmm3 // invert number of bits to rotate
-  movdqa %xmm3, %xmm2 // put answer back in our bit distance keeper register.
-  psllq %xmm2, %xmm1 // shift second copy left inverse number of bits with zero fill
-  por %xmm1, %xmm0 // Or the two shifted copies together to form a rotated copy.
-  movdqa %xmm0, STACK1
+  movb STACK0, %cl
+  movq STACK1, %rax
+  ror %cl, %rax
+  movq %rax, STACK1
+  movb STACK0_5, %cl
+  movq STACK1_5, %rax
+  ror %cl, %rax
+  movq %rax, STACK1_5
   SIMDPopDestructive
 .endm
 
@@ -372,39 +385,28 @@ STACK1
 // Bits shifted off the end of each item will be put into most significant
 // positions. No extra positions such as Carry are traded from
 // (but I think Carry does somehow get traded to? How that lanes I cannot be sure though..)
-// as of 2022-04-02, not yet clear if STACK0 is interpreted as only first lane
-// applying to all lanes of STACK1, or if each lane gets it's own offset
-// from STACK0. :o
+// as of 2022-04-03, tested and it appears as though the lane1 bit shift value is the only one that gets applied to all lanes of the bit shift subject. Disgusting!
+// My reaction: get bent, for SSE level I'll do the bit shift operations in general registers. For AVX+ levels I'll probably shuffle vectors.. but I WILL get per lane shifts like Gawd intended, ISA be damned!
 // EG: (1 2 0x34 4) bitRotateDown -> (1 2 0x4000000000000003)
 // NEW top of stack => %xmm0
 // Cobbered: %xmm1, %xmm2
 // input 2 unit, output 1 unit
 // If output high bit set, then overflow UnsignedInteger63.
 // Overflow without high bit set is also possible. Just.. don't overflow jeez.
-// Tested and passed 2022-04-03T06:42-07:00
+// Tested and passed 2022-04-03T14:53-07:00
 .macro UnsignedInteger63bitRotateUp
-  movdqa ALL_LANES_0x01(%rip), %xmm3 // load constant 0x01 into xmm3
-  movdqa %xmm3, %xmm2 // 0x01 copied into xmm2
-  psllq $DATA_METASIZE_IN_BITS, %xmm3 // <<6bits = 0x40 aka 64 bit data size
-  movdqa %xmm3, %xmm7 // 0x40(xmm3) copied into xmm7
-  psubq %xmm2, %xmm7 // 0x40 - 0x01 = 0x3F -> xmm7
-  movdqa STACK0, %xmm2 // Number of bits to rotate
-  pand %xmm7, %xmm2 // Number of bits to rotate & 0x3F, only bottom 6 bits gets used.
-  movdqa STACK1, %xmm0 // Value to modify
-  movdqa STACK1, %xmm1 // Value to modify (copy)
-  psllq %xmm2, %xmm0 // shift first copy right with zero fill
-  psubq %xmm2, %xmm3 // invert number of bits to rotate
-  movdqa %xmm3, %xmm2 // put answer back in our bit distance keeper register.
-  psrlq %xmm2, %xmm1 // shift second copy left inverse number of bits with zero fill
-  por %xmm1, %xmm0 // Or the two shifted copies together to form a rotated copy.
-  movdqa %xmm0, STACK1
+  movb STACK0, %cl
+  movq STACK1, %rax
+  rol %cl, %rax
+  movq %rax, STACK1
+  movb STACK0_5, %cl
+  movq STACK1_5, %rax
+  rol %cl, %rax
+  movq %rax, STACK1_5
   SIMDPopDestructive
 .endm
 
 // STACK0 will be set to all 0 if high bit is 0, or all 1 if high bit is 1.
-// as of 2022-04-02, not yet clear if STACK0 is interpreted as only first lane
-// applying to all lanes of STACK1, or if each lane gets it's own offset
-// from STACK0. :o
 // EG: (-1) castToBoolean -> (0xFFFFFFFFFFFFFFFF) aka Boolean TRUE
 // EG: (0) castToBoolean -> (0) aka Boolean FALSE
 // EG: (0xFFFFF) -> (0) aka Boolean FALSE
@@ -506,12 +508,12 @@ STACK1
 _start:
   // Treating inbound rbp=0 as parent's stack frame.
   EndAlienStackFrame
-  // mov $0x8123456789ABCDEF, %rax
+  mov $0x8123456789ABCDEF, %rax
   // mov $0x8000000000000000, %rax
-  mov $0x0, %rax
+  // mov $0x0, %rax
   push %rax // Lane 2 pushed first
   // mov $0x1000000000000000, %rax
-  mov $0xFFFFFFFFFFFFFFFF, %rax
+  mov $0x1020304050607080, %rax
   push %rax // Lane 1 pushed second
   // mov $0x8000000000000000, %rax
   // sub $1, %rax
@@ -519,22 +521,20 @@ _start:
   // push %rax // Lane 2 pushed first
   // mov $16, %rax
   // push %rax // Lane 1 pushed second
-  Count
-  Count
-  mov $3, %rax
+  // Count
+  // Count
+  mov $4, %rax
   push %rax // Lane 2 pushed first
+  mov $8, %rax
   push %rax // Lane 1 pushed second
-  // SIMDGather indexRegister=%xmm0 receiveRegister=%xmm0
-  Index
-  // Exchange
-  // UnsignedInteger63add
-
+  // Index
   // BooleanPushFalse
   // BooleanPushTrue
   // BooleanPushTrue
   // BooleanPushFalse
   // BooleanXor
   // UnsignedInteger63castToBoolean
+  UnsignedInteger63bitRotateUp
 
 PrintStack:
   cmp %STACK_BASE_POINTER, %STACK_POINTER
