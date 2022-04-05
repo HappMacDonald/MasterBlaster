@@ -1,5 +1,47 @@
 .include "libmb_s.h"
 
+// 2022-04-04 current status:
+// All currently implemented functions are fully implemented, tested, and
+// lane independant.
+// Stack manipulation functions like
+// * rollElements
+// * reverseElements
+// * deleteElements
+// * copyElements
+// .. basically every command I just renamed to have an "Elements" suffix
+// while typing this out, will be especially challenging to implemenet
+// in a lane-independant fastion. "clearStack" only gets off easy 
+// because it can cheat on the assumption that all stacks are
+// the same length.
+// I think I might need to break down and yield lane independance for
+// "manipulate elements of the stack" commands, in order to
+// enforce the SIMD "elements in a lane ought to remain in lockstep
+// (or be masked out)" principle. In which case, "element counts get
+// implicitly broadcast from lane 1" will be the order of the day.
+// Imma call OPs that do yield to that principle "scalar broadcast ops".
+// My bitshift ops are NOT scalar broadcast ops dawg,
+// they are lane independant! ;D
+//
+// I've got some work put into 2022-04-04T0501-0700 scratchpad.txt :
+// a list of all active macros at the moment,
+// and a quick sketchup of a possible "factorial" procedure.
+// Ops we need to support factorial include:
+// * Being able to invoke a "named subroutine" from the execution stream.
+// * Being able to return from a subroutine (however it got called).
+// * First class subroutines (eg, storing an anonymous subroutine as data)
+// will be quite helpful, though factorial in particular doesn't seem
+// to benefit from that give or take the "if" flow control feature which
+// might wind up using it.
+// * "if" flow control mechanism of some form.
+// .. how do we reconcile that with lanes I wonder?
+// ** perhaps a :scalarBroadcast variant that does full flow control
+// ** and a slightly more lane-independant variant that does some
+// not-yet-planned-out mix of masking and blending to perform some
+// operation to only the "True" lanes of the next single item on the stack,
+// while leaving the "False" lanes unchanged.
+// I'll call this lane-independant version conditionalMaskBlend.
+
+
 // 2022-04-03 Current status:
 // I'm debugging Index verb, which is just now really starting to
 // rock and roll thanks to the magic (and allegedly slow! pextrq/pinsrq

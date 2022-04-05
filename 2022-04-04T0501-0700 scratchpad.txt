@@ -1,0 +1,41 @@
+.macro systemExit
+.macro EndAlienStackFrame
+.macro ReturnToAlienCaller
+
+.macro ClearStack
+.macro SIMDPush register=%xmm0
+.macro SIMDPopDestructive
+.macro ScalarBroadcastToSIMD scalarRegister:req receiveRegister:req
+.macro SIMDGather indexRegister=%xmm1 receiveRegister=%xmm0
+.macro Count
+.macro Duplicate
+.macro Exchange
+.macro Index
+.macro SetAllBitsZero register=%xmm7
+.macro SetAllBitsOne register=%xmm7
+.macro UnsignedInteger63negate
+.macro UnsignedInteger63add
+.macro UnsignedInteger63multiply
+.macro UnsignedInteger63equal
+.macro UnsignedInteger63greaterThan
+.macro UnsignedInteger63bitShiftDownZeroPad
+.macro UnsignedInteger63bitShiftUpZeroPad
+.macro UnsignedInteger63bitRotateDown
+.macro UnsignedInteger63bitRotateUp
+.macro UnsignedInteger63castToBoolean
+.macro BooleanPushTrue
+.macro BooleanPushFalse
+.macro BooleanNot
+.macro BooleanAnd
+.macro BooleanOr
+.macro BooleanXor
+
+
+factorial
+UnsignedInteger63 duplicate 1 greaterThan
+If:
+  FALSE => ()
+  TRUE => duplicate -1 add factorial *
+return
+
+Thoughts: 

@@ -189,24 +189,90 @@ Ex: (1 2 3 4 3 1) exch -> (1 2 3 4 1 3)
 x index
 removes top of stack as argument "n:UnsignedInteger63". Then finds the nth item in pop order, leaves it in place, but pushes a duplicate of it to the top of the stack.
 Ex: (1 2 3 4 3) index -> (1 2 3 4 2)
-? roll
-Removes argument "domain:UnsignedInteger63" first. Removes argument "offset:UnsignedInteger63" next. Shifts the top "domain" items in the stack forward a distance of `floorMod(offset, domain) = (offset/domain - floor(offset/domain))*domain`. Thus, if "offset" is 0 or any multiple of "domain" the effect is a NOOP (aside from popping the arguments) and negative offsets correspond to rolling backwards instead.
--- behavior when domain > stack size not yet decided.
+? assertLanesEqual
+This will scan (without moving or destroying) the top of the stack.
+If all lanes are equal in this item, job done.
+If they are not, we throw an exception.
+This will be helpful for users to optionally enforce
+that their :scalarBroadcast data elements really are prior to
+using them in :scalarBroadcast operations, like variable length stack element manipulation below. I can't allow shuffling of the stack differently between lanes.
+##########################################################
+##  I am mothballing these ideas for the time being,    ##
+##  I may be able to operate better without them fttb.  ##
+##########################################################
+##  ? ball:scalarBroadcast
+##  Pop argument "length:UnsignedInteger63:scalarBroadcast".
+##  Pop the top "length" elements from this stack and create a new stack
+##  out in memory somewhere containing these elements.
+##  Leave return "pointer:UnsignedInteger63:scalarBroadcast" pointing to newly
+##  created stack.
+##  I'll need to figure out how to keep track of lengths of substacks too somehow, hmm.
+##  ? freeball
+##  Pop "pointer:UnsignedInteger63:scalarBroadcast", which points to a substack. Destroy substack and free memory allocated for it.
+##  ? unball:scalarBroadcast
+##  Pop "pointer:UnsignedInteger63:scalarBroadcast", which points to a substack. Push entire substack onto the main stack. Do not free substack, and caller is held liable for having another copy of that pointer we just burnt somewhere else.
+##  ? freeunball
+##  Pop "pointer:UnsignedInteger63:scalarBroadcast", which points to a substack.
+############################
+? begin:scalarBroadcast
+Begins a block of code which will be compiled, but instead of executed
+in the order encountered the compiled "subroutine" will be set aside,
+and a pointer to this resource will be left on top of the stack.
+Nested compilation continues until `end` token is reached.
+? end:scalarBroadcast
+If no block is processing, this behavior is not yet defined.
+Should raise an exception until better defined interpretation can
+be decided upon.
+If one or more blocks are currently processing, then the most recently
+started one is terminated, and a command to leave its pointer on the stack is compiled into the parent.
+abrupt "return" command is included as final instruction in the compiled block, for good measure.
+? assignName
+Consumes two parameters from the stack. In push order `name:Raw64` and `asset:Raw64`. Name will most likely be a string in future revisions, but since everything is a subclass of Raw64 at the moment, we'll go with that in a pinch.
+This stores the `asset` (a vector of Raw64 values) at runtime in a keyed dictionary using the key `name` (also a vector, so each lane stores potentially a different asset under a different name).
+This dictionary is immutable, and will eventually be subject to garbage collection but for M1 no garbage collection will be attempted. Trying to assign any asset to a name already in the dictionary (from any lane) will raise an exception.
+? invokeName
+Consumes parameter `name:Raw64` from the stack. Uses each value in each lane of this parameter as keys into the runtime constant dictionary, and builds a vector of the asset for each lane. Said vector is left on the stack instead.
+? execute:scalarBroadcast
+Top of stack must be a compiled block pointer, or this raises an exception.
+The block is invoked via x64 `call` opcode. `return` opcode in the called block will revert execution back to this point, with a probably modified stack.
+? conditionalMaskBlendOneArgument
+will need to (somehow) accept 3 arguments:
+* test Mask
+* Data argument
+* an anonymous or named subroutine to perform.
+conditionalMaskBlendOneArgument duplicates the data argument
+onto the top of the stack,
+then runs the subroutine which is honor bound not to reach farther
+back in the stack than the one data argument. Subroutine is
+also honor bound to leave the stack the same length it found it,
+EG it may leave the argument data element untouched or else alter or
+replace it with a single data element return.
+Once finished, conditionalMaskBlendOneArgument will blend the
+original argument with the subroutine-return using the mask, consuming all three and leaving only the result on the stack.
+Later I might make a "balled up arguments" version or something, but then I'm not yet certain how to maskblend >1 arguments or if I'd only need to maskblend the final argument in the ball.
+conditionalMaskBlendOneArgument is free to bail early on
+mask=all lanes false, not running the subroutine at all in that case.
+Subroutine is also honorbound not to perform any side effects, since masked out lanes would wind up generating their own side effects as well.
+
+
+? rollElements
+Removes argument "domain:UnsignedInteger63:scalarBroadcast" first. Removes argument "offset:UnsignedInteger63:scalarBroadcast" next. Shifts the top "domain" items in the stack forward a distance of `floorMod(offset, domain) = (offset/domain - floor(offset/domain))*domain`. Thus, if "offset" is 0 or any multiple of "domain" the effect is a NOOP (aside from popping the arguments) and negative offsets correspond to rolling backwards instead.
+-- behavior when domain > stack size undefined and undesirable.
 Ex: (1 2 3 4 2) roll -> (1 2 3)
 "offset" 4 is a multiple of "domain" 2, so nothing got rolled.
 Ex: (1 2 3 4 3 1) roll -> (1 4 2 3)
 Ex: (1 2 3 4 3 -1) roll -> (1 3 4 2)
 Ex: (1 2 3 4 3 5) roll -> (1 4 2 3)
 Ex: (1 2 3 4 3 -9) roll -> (1 3 4 2)
-Ex: (1 2 3 4 30 1) roll -> !!not yet defined behavior!!
-? rev
-Removes argument "n:UnsignedInteger63". Reverses the positions of the following "n" items in the stack.
+Ex: (1 2 3 4 30 1) roll -> You'll be eaten by a Gru.
+? reverseElements
+Removes argument "n:UnsignedInteger63:scalarBroadcast". Reverses the positions of the following "n" items in the stack.
 Ex: (1 2 3 4 2) rev -> (1 2 4 3) 
-? del
-Removes argument "n:UnsignedInteger63". Destroys remaining top "n" values in the stack.
+? deleleElements
+Removes argument "n:UnsignedInteger63:scalarBroadcast". Destroys remaining top "n" values in the stack.
 Ex: (1 2 3 4 2) del -> (1 2)
-? copy
-Removes argument "n:UnsignedInteger63". Duplicates the remaining top n values in the stack, in matching order.
+? copyElements
+Removes argument "n:UnsignedInteger63:scalarBroadcast". Duplicates the remaining top n values in the stack, in matching order.
 Ex: (1 2 3 4 2) copy -> (1 2 3 4 3 4)
 ? BitSplitDown
 Removes argument "n:UnsignedInteger63". Removes argument "data:UnsignedInteger63". Right shifts (divide shifts, towards least significant bit shifts) "data" by "n" bits. Top "n" bits of data are replaced by zero bits. Bottom "n" bits of data get placed in matching order into the least significant bits of new value "data2:UnsignedInteger63". "data" followed by "data2" are pushed back onto the stack.
