@@ -315,11 +315,9 @@ STACK1
   psrlq   $32, %xmm1
   pmuludq %xmm1, %xmm0
   paddq   %xmm3, %xmm0
-  pmuludq %xmm1, %Dereference0
-%xmm0
+  psllq   $32, %xmm0
   paddq   %xmm2, %xmm0
-  psllq   $32, %Dereference0
-STACK1
+  movdqa  %xmm0, DATA_STACK1
   SIMDPopDestructive
 .endm
 
