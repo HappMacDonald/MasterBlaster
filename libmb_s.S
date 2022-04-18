@@ -1,4 +1,4 @@
-.include "libmb_s.h"
+#include "libmb_s.h"
 
 .text
 # Procedures
@@ -119,8 +119,79 @@ unsignedIntegerToStringBase10:
   movq %rcx, %rax # copy left side of result from arg4 to ret1
   ret
 
+# This prints each lane of each stack element.
+# Bottom of stack first, lane 1 first.
+# lanes delimited by colons, stack elements delimited by newlines.
+.global PrintStack
+PrintStack:
+  mov %DATA_STACK_POINTER, %rcx
+PrintStackLoop:
+  cmp BOTTOM_OF_CALL_STACK, %rcx
+  jae End
+
+# Print Lane 1 of current stack top
+  mov (%rcx), %rdi
+  push %rcx
+  leaq MEMORY_SCRATCHPAD(%rip), %rsi
+  call unsignedIntegerToStringBase16
+  //%rax has new pointer to string
+  //%rdx has length of new string
+  putMemoryMacro messageLocation=(%rax),length=%rdx
+
+//Print a colon
+  mov $STDOUT, %rdi
+  lea COLON(%rip), %rsi
+  mov $singleCharacterLength, %rdx
+  mov $sys_write, %rax
+  syscall
+
+//Print Lane 2 of current stack top
+  pop %rcx
+  mov 8(%rcx), %rdi // DATA_STACK0 lane 2
+  push %rcx
+  // mov 24(%DATA_STACK_POINTER), %rdi // DATA_STACK0 lane 2
+  leaq MEMORY_SCRATCHPAD(%rip), %rsi
+  call unsignedIntegerToStringBase16
+  //%rax has new pointer to string
+  //%rdx has length of new string
+  putMemoryMacro messageLocation=(%rax),length=%rdx
+
+  pop %rcx
+  add $SIMD_WIDTH, %rcx
+  push %rcx
+  putNewlineMacro
+  pop %rcx
+  jmp PrintStackLoop
+
+End:
+  ret
+
 
 	.data
 .global TrigentasenaryUppercaseDigits
 TrigentasenaryUppercaseDigits:
   .string "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+.global MEMORY_SCRATCHPAD
+MEMORY_SCRATCHPAD:
+.skip 512
+
+COLON:
+  .string ":"
+
+// Align to start of a cache line. (or center of a very large one perhaps?)
+.balign 64
+.global ALL_LANES_0x01
+ALL_LANES_0x01:
+  .quad 1,1
+  .quad 1,1
+  .quad 1,1
+  .quad 1,1
+
+.global ALL_LANES_0x3F
+ALL_LANES_0x3F: // That's 63dec, or 0011 1111 binary
+  .quad 0x3F,0x3F
+  .quad 0x3F,0x3F
+  .quad 0x3F,0x3F
+  .quad 0x3F,0x3F
+

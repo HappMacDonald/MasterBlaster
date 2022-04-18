@@ -1,0 +1,59 @@
+Data type modes:
+* boolean
+* bitfield64
+* unsignedInteger64
+* signedInteger64
+* bitfield8
+* unsignedInteger8
+* signedInteger8
+
+Immediates:
+* 0x
+* 0d
+* 0b
+// * 0o
+// * named constants?
+
+Verbs:
+* pop -> DataStackRetreat
+* pop2 -> DataStackRetreatTwice
+* systemExit
+* clearStack -> ClearDataStack
+* count -> Count
+* duplicate -> Duplicate
+* exchange -> Exchange
+* index -> Bitfield64Index (for now)
+* negate -> Bitfield64negate or Bitfield8negate or BooleanNot
+* add -> Bitfield64add or Bitfield8add or BooleanOr
+* multiply -> UnsignedInteger63multiply or (error for 8 bit types for now)
+    or BooleanAnd
+* equal -> Bitfield64equal or Bitfield8equal
+    or BooleanXnor (I should make that I guess)
+* greaterThan -> SignedInteger64greaterThan or SignedInteger8greaterThan
+    or Boolean error (A and Not B maybe? I'unno..)
+* bitShiftDown (64 bit unsigned only)
+* bitShiftUp (64 bit unsigned only)
+* bitRotateDown (64 bit unsigned only)
+* bitRotateUp (64 bit unsigned only)
+* toBoolean -> Bitfield64castToBoolean or Bitfield8castToBoolean
+    or error in boolean mode
+* TRUE -> BooleanPushTrue
+* FALSE -> BooleanPushFalse
+* not -> BooleanNot (one's compliment in all modes)
+* and -> BooleanAnd (in all modes)
+* or -> BooleanOr (in all modes)
+* xor -> BooleanXor (in all modes)
+* maskBlend -> Bitfield64MaskBlend or Bitfield8MaskBlend
+* conditionalMaskBlendOneArgument ->
+    Bitfield64ConditionalMaskBlendOneArgument
+    or Bitfield8ConditionalMaskBlendOneArgument
+* call -> BranchUnconditional
+* ScalarBranchLessThan
+* ScalarBranchGreaterThan
+* ScalarBranchEqual
+* ScalarBranchAnd
+* ScalarBranchGreaterThanOrEqual
+* ScalarBranchLessThanOrEqual
+* ScalarBranchNotEqual
+* ScalarBranchNand
+* printStack

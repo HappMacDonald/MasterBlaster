@@ -38,4 +38,168 @@ If:
   TRUE => duplicate -1 add factorial *
 return
 
-Thoughts: 
+-----------
+factorial:
+  Duplicate
+  Immediate 1
+  UnsignedInteger63greaterThan
+  Exchange
+  leaq factorialInner(%rip), %rax
+  DataStackPushGeneral %rax
+  conditionalMaskBlendOneArgument
+  ret
+
+factorialInner:
+  Immediate -1
+  UnsignedInteger63add
+  call factorial
+  UnsignedInteger63multiply
+  ret
+
+
+0x666
+( UnsignedInteger63
+  Duplicate
+  0x1
+  greaterThan
+  Exchange
+  ( -0x1
+    add
+    0x666
+    execute
+    multiply
+  )
+  conditionalMaskBlendOneArgument
+)
+
+
+factorial:
+  Duplicate
+  Duplicate
+  Immediate 1
+  Greater than
+  Exchange
+  FI
+  CMBOA
+  Multiply
+
+
+FI:
+  Immediate 1
+  subtract
+
+
+6:1
+4:1
+24:1
+
+
+A(0, n) = n+1
+A(m+1, 0) = A(m, 1)
+A(m+1, n+1) = A(m, A(m+1, n))
+
+A(0, n) = n+1
+A(m, 0) = A(m-1, 1)
+A(m, n) = A(m-1, A(m, n-1))
+
+
+int Ackermann(int m, int n)
+{ if(m==0)
+  { return n+1;
+  }
+  else if(n==0)
+  { return Ackermann(m-1, 1);
+  }
+  else
+  { return Ackermann(m-1, Ackermann(m, n-1));
+  }
+}
+
+void main()
+{ return(Ackermann(3,4));
+}
+
+Comparison opcode exploration
+two argument input A&B (either first two items on stack in push order
+, or top item on stack repeated)
+Both arguments N-bit long (64-bit long for current platform)
+One boolean output.
+
+
+* Not A
+// * Not B (due to symmetry of comparison, this can be skipped)
+???
+Bitwise And (True if share Any bits, False if share no bits)
+Bitwise Or  (True if both are NOT zero, False if both ARE zero)
+Bitwise Xor (True if both are NOT Equal, False if both ARE Equal)
+// Logical And (assuming what casts?)
+// Logical Or  (assuming what casts?)
+// Logical Xor (assuming what casts?)
+// Equal (same as Not Xor?)
+// Not Equal (same as Xor?)
+Signed greater than
+Signed less than
+Unsigned above
+Unsigned below
+???
+* Not O
+
+Outcomes to handle:
+* Unconditional (always true output)
+* Nop (always false output, though this is 100% optional for immediate operands)
+* Unsigned Above
+* Signed Greater Than
+* Equal (Not Xor)
+* Not Equal (Xor)
+* Signed Less than
+* Unsigned Below
+* Greater than or equal to (not less than)
+* Less than or equal to (not greater than)
+* Above or Equal (not below)
+* Below or Equal (not above)
+* True if share any bits (and)
+* False if share any bits (nand)
+* True if any bit in either operand is set (or)
+* False if any bit in either operand is set (nor)
+* True if items are bitflipped replicas of each other (not A XNor)
+
+
+Outcomes Handled:
+==== O
+* True    (Unconditional Jump)
+* And     (True if share Any bits, False if share no bits) .. Collision
+* Or      (True if both are NOT zero, False if both ARE zero) .. !all zero
+* Xor     (True if both are NOT Equal, False if both ARE Equal) .. !=
+* Above
+* Greater
+* Less
+* Below
+==== Not O
+* True    (NOP)
+* And     (True if share no bits, False if share Any bits) .. !Collision
+* Or      (True if both ARE zero, False if both are NOT zero) .. all zero
+* Xor     (True if both ARE Equal, False if both are NOT Equal) .. ==
+* Above   (below or equal)
+* Greater (less or equal)
+* Less    (greater or equal)
+* Below   (above or equal)
+
+Encoding:
+
+Mask ^XX: output not
+Mask X^X: 0=Arithmetic, 1=Bitwise
+Mask X0^: 0=smaller (less/below), 1=bigger (greater/above)
+Mask X1^: 0*0 should be opposite of the not bit
+** 0*1==1*0 always == not bit always, and
+** 1*1 == opposite of not bit, always.
+
+      000: less than aka below (depending on type mode)
+      001: greater than aka above (depending on type mode)
+      010: XNOR (aka equal)
+      011: AND (aka "are there any set bits shared between the inputs?")
+      100: greater than aka above or equal to (depending on type mode)
+      101: less than aka below or equal to (depending on type mode)
+      110: XOR (aka not equal)
+      111: NAND (aka "are there no set bits shared between the inputs?")
+
+

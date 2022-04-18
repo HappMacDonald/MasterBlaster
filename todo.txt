@@ -1,3 +1,11 @@
+== Linux x64 Syscall argument order:
+* x86-64	rdi	rsi	rdx	r10	r8	r9
+* The number of the syscall has to be passed in register %rax.
+* The kernel destroys registers %rcx and %r11.
+* Result will be in %rax.
+* Return between -4095 and -1 indicates an error, it is -errno.
+
+
 == 2022-03-30 current status:
 M1 Plan:
 * "Stack" will for now literally be the system stack.
@@ -679,7 +687,7 @@ It would be nice if I could arrange for errors found within macro expansions to 
 * `set disable-randomization off` is your friend. Esp if things segfault in the wild but behave sweet and innocent in gdb.
 * `layout split` is the ideal way to see decompiled source, stepi can step through the components of a macro here
 ** CTRL-L cleans up the screen when STDOUT/STDERR get noisy and mess up all the ncurses formatting.
-** Seriously tho.. would it kill gdb staff to just pipe tty through a subwindow in the ncurses layout? ;P
+** Seriously tho.. would it kill gdb team to just pipe tty through a subwindow in the ncurses layout? ;P
 * x/1bx <thing> (x)prints the (1)one (b)yte at that place in he(x).
 * p (char[<length>])<place> coughs up a string of predefined length.
 * gdb cheatsheet here https://users.ece.utexas.edu/~adnan/gdb-refcard.pdf

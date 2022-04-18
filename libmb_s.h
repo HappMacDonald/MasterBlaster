@@ -1,3 +1,5 @@
+#include "crude_compiler.h"
+
 # Definitions
 
 STDIN = 0
@@ -69,7 +71,7 @@ putNewlineMacroEnd\@:
 	jmp putsEnd\@
 putsMessage\@:
   .string "\message"
-  putsMessage\@Length = . - putsMessage\@
+  putsMessage\@Length = . - putsMessage\@ - 1
   .align 8
 putsEnd\@:
 .endm
