@@ -1,6 +1,112 @@
 // Current poor-man's makefile:
 // gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
 
+// 2022-04-22T14:35-07:00 planning note:
+// Hmm, I've had a potential breakthrough.
+// I think I can make `reduce` parallelizable. 🤓
+// That wasn't even the problem I was trying to solve.
+// Background: `reduce` is a common iterable verb to other languages,
+// like Elm, Haskell, Tensorflow, etc.
+// If you have a list of data, `reduce` allows you to perform one
+// function (lambda) upon each data element (one at a time, eg serially)
+// that accepts one data element and an "accumulator"
+// of user-defined shape.
+// The lambda will process the data element to evolve the accumulator,
+// and output the new accumulator that gets fed into the lambda with
+// the succeeding data element to repeat the cycle.
+// It's the essence of an assembly line.
+// So, normally running through N elements takes N iterations
+// since for each data element to be processed you have to know
+// what output you'll get from the preceeding data element.
+// But I have potentially found a new — SIMD-performant way to look at
+// the problem which might reduce that big O from N to
+// something closer to log(n)/log(2) assuming one has enough
+// SIMD lanes. One never does, but the algorithm I'm proposing
+// would still allow big speedups for every 2^K data lanes
+// one does have available to them.
+// Ultimately, my algorithm gathers and curries 2^K data elements
+// in K steps to create a huge curried function that ought to be
+// able to accept 1 input accumulator and spit out the correct
+// accumulator for 2^K elements down.
+
+
+// 2022-04-22T01:23-07:00 current status:
+// OK, I've got some more inspiration to work from about
+// how to standardize iterable operation.
+// 1: A RAM Iterable is a static one in RAM.
+// Could be a buffer you read into with sysread or MMAP
+// or read back out of with syswrite or.. uh.. MMAP,
+// Could be a literal. You could probably build and manipulate
+// one as well, though I'm not yet certain how.
+// * Pointer to length (broadcast scalar Bitfield64)
+// ** Length must be in BYTES.
+// ** Length is succeeded in RAM by the actual data.
+// ** Caller has to keep track of whether data is something that
+//    can always be guaranteed to be aligned or not.
+// 2: A generator is yet to be specifed: to be decided.
+// 3: A LOOP will be its own class of critter.
+// * It will consist of:
+// ** A metafunction (with at least one simple exemplar in crude_compiler)
+// ** A Call Stack frame
+// *** Last item in call stack frame: address of metafunction
+// **** This is handled automatically by "call <lambda>".
+// *** Before that, in unknown order — ultimately decided by the metafunction:
+// *** address of iterable data
+// *** length in bytes of iterable data
+// *** Current SIMD Vector index within iterable
+// **** EG, address + (index * SIMD_WIDTH) = current location in RAM we're dealing with
+// *** Address of "last" clause in this metafunction
+// *** Address of Lambda (code that gets looped)
+// You can call loop metafunction giving it above data..
+// .. possibly just by creating the call stack frame. What do I know?
+// .. or I use some looping verb in Crude.
+// Loop metafunction either writes and/or reads stack frame, then
+// puts the first or next vector onto the stack, and invokes lambda.
+// lambda ends with "ret" (or verb-alias "next")
+// , which represents "next item".
+// Crude will offer a "last" verb, which pops the metafunction
+// address off of the callstack and then calls
+// the metafunction's "last" pointer.
+// Metafunction gets called on ret/next
+// due to shape of stack frame.
+// It can bail if "last" clause gets called,
+// or fail through to last clause if it notices
+// that there is no "next" (++index>=length).
+// metafunction should also mask final vector of elements
+// to match byte length automatically.
+// Metafunction:last bails by going through the mundane libc
+// process of unrolling the stack frame via rsp/rbp and then
+// performing one final ret.
+
+// 2022-04-21T19:49-07:00 current status:
+// I will try to go with the maxim:
+// Iterable in RAM is prefixed with 1 SIMD_WIDTH of
+// bitfield64 scalar broadcast length of iterable.
+// Current fuzzy point: unit length is kept in?
+// Bits? Bytes? Cannot be vector lengths. Caller-defined size?
+
+// 2022-04-21T0056-0700 current status:
+// OK, I'm writing up a way to loop over the tokens and test for
+// more than one against the input. However, I run into the new snag
+// of "How do I know when I'm done with the loop?".
+// This is a problem fundamental to Crude:
+// iterables will usually have an end (unless they are endless generators)
+// that tells the code when they need to stop looping.
+// The best stab I've been able to make so far is
+// to define a label "endOfTokenLiterals" at the end.. well..
+// of the token literals.
+// I can easily do the same for the input buffer, begin + length.
+// Now how to fold this finiteness into the fundamental structure
+// of how to loop over iterable like structures in RAM.
+// Additionally, how to handle when the number of lanes is not
+// evenly divisible by the vector lane width. Such as, when read input
+// was less than buffer length.
+
+// 2022-04-18 current status:
+// Simple token match w/o trim or loop over multiple tokens is working! :D
+// Next: need loop over multiple tokens,
+// then: need trim
+
 // 2022-04-18 current status:
 // Current hangup: agonizing over how every verb should get shortened
 // to 15 char or less. Rude truncation is an option I am leaving
@@ -259,11 +365,12 @@
 #define SIMD_WIDTH_TIMES_2 32
 #define SIMD_WIDTH_TIMES_3 48
 #define SIMD_WIDTH_TIMES_4 64
-#define SIMD_META_WIDTH 4 // how many bits long is the number describing the width
-#define DATA_SIZE_IN_BITS 64
-#define DATA_SIZE_IN_BITS_MINUS_ONE 63
-#define DATA_METASIZE_IN_BITS 6 // how many bits long is the number describing the size
-#define DATA_SIZE_IN_BYTES 8
+#define CACHE_LINE_WIDTH 64
+// how many bits long is the number describing the width in bytes
+#define SIMD_META_WIDTH 4 
+#define CACHE_LINE_META_WIDTH 6
+// A "scalar native" is 64 bits on 64 bit processors. :P
+#define SCALAR_NATIVE_WIDTH_IN_BYTES 8
 
 #define SCALAR_LESS_THAN 0
 #define SCALAR_BELOW 0
@@ -358,11 +465,15 @@
 #define DATA_STACK_POINTER32 ebx
 #define TOP_OF_CALL_STACK (%CALL_STACK_POINTER)
 #define TOP_OF_DATA_STACK (%DATA_STACK_POINTER)
-#define BOTTOM_OF_CALL_STACK (%CALL_STACK_BASE_POINTER)
+#define BOTTOM_OF_CALL_STACK -8(%CALL_STACK_BASE_POINTER)
 // This should be exactly 2^24 bytes or 16MiB
 #define DATA_STACK_SIZE 16777216
 
 // sensitive to SIMD_WIDTH :P  I'm too lazy to look up how to do gas variable arithmetic right now.
+#define DATA_STACK_NEGATIVE3 -48(%DATA_STACK_POINTER)
+#define DATA_STACK_NEGATIVE2_5 -40(%DATA_STACK_POINTER)
+#define DATA_STACK_NEGATIVE2 -32(%DATA_STACK_POINTER)
+#define DATA_STACK_NEGATIVE1_5 -24(%DATA_STACK_POINTER)
 #define DATA_STACK_NEGATIVE1 -16(%DATA_STACK_POINTER)
 #define DATA_STACK_NEGATIVE0_5 -8(%DATA_STACK_POINTER)
 #define DATA_STACK0 (%DATA_STACK_POINTER)
@@ -381,6 +492,21 @@
 #define DATA_STACK6_5 104(%DATA_STACK_POINTER)
 #define DATA_STACK7 112(%DATA_STACK_POINTER)
 #define DATA_STACK7_5 120(%DATA_STACK_POINTER)
+
+// sensitive to SCALAR_NATIVE_WIDTH_IN_BYTES :P  I'm too lazy to look up how to do gas variable arithmetic right now.
+#define CALL_STACK_NEGATIVE5 -40(%CALL_STACK_POINTER)
+#define CALL_STACK_NEGATIVE4 -32(%CALL_STACK_POINTER)
+#define CALL_STACK_NEGATIVE3 -24(%CALL_STACK_POINTER)
+#define CALL_STACK_NEGATIVE2 -16(%CALL_STACK_POINTER)
+#define CALL_STACK_NEGATIVE1 -8(%CALL_STACK_POINTER)
+#define CALL_STACK0 (%CALL_STACK_POINTER)
+#define CALL_STACK1 8(%CALL_STACK_POINTER)
+#define CALL_STACK2 16(%CALL_STACK_POINTER)
+#define CALL_STACK3 24(%CALL_STACK_POINTER)
+#define CALL_STACK4 32(%CALL_STACK_POINTER)
+#define CALL_STACK5 40(%CALL_STACK_POINTER)
+#define CALL_STACK6 48(%CALL_STACK_POINTER)
+#define CALL_STACK7 56(%CALL_STACK_POINTER)
 
 // copied from /usr/include/sys/mman.h, et al
 #define PROT_NONE     0x0  /* Page can not be accessed.  */
@@ -420,7 +546,12 @@ DataStackRetreat\@: add $SIMD_WIDTH, %DATA_STACK_POINTER
 DataStackRetreatTwice\@: add $SIMD_WIDTH_TIMES_2, %DATA_STACK_POINTER
 .endm
 
-# Assumes 2x64bit lane SSE
+.macro DataStackRetreatThrice
+  // retreat by climbing back upwards again
+DataStackRetreatTwice\@: add $SIMD_WIDTH_TIMES_3, %DATA_STACK_POINTER
+.endm
+
+# Currently assumes 2x64bit lane SSE
 .macro _DataStackPopGeneral register=%rax
 _DataStackPopGeneral\@:
   mov DATA_STACK0, \register
@@ -445,9 +576,24 @@ _Bitfield64DataStackPushGeneral\@:
 _Bitfield8DataStackPushGeneral\@:
   // 32 bits gets moved here, but only low 8 bits will survive.
   movd \register, %xmm0
-  _SetAllBitsZero %xmm7 // lane 0 new source for every lane
-  pshufb %xmm7, %xmm0 // broadcast xmm0's lowest 8 bits to all lanes.
   _SIMDPush %xmm0
+  Bitfield8ScalarBroadcast
+.endm
+
+// clobbers %xmm0
+// Tested 2022-04-21T19:35-07:00
+.macro Bitfield64ScalarBroadcast
+  pshufd $0x44, DATA_STACK0, %xmm0
+  movdqa %xmm0, DATA_STACK0
+.endm
+
+// clobbers %xmm0, %xmm7
+// Tested 2022-04-21T19:35-07:00
+.macro Bitfield8ScalarBroadcast
+  _SetAllBitsZero %xmm7 // lane 0 new source for every lane
+  movdqa DATA_STACK0, %xmm0
+  pshufb %xmm7, %xmm0 // broadcast xmm0's lowest 8 bits to all lanes.
+  movdqa %xmm0, DATA_STACK0
 .endm
 
 // Does not return, does not tidy stack. Yields control back to the calling shell.
@@ -491,6 +637,15 @@ PopParentOwnedRegisters\@:
   _CallStackPopGeneral %rbx
 .endm
 
+.macro PrepareSimpleCallStackFrame
+  _CallStackPushGeneral %CALL_STACK_BASE_POINTER
+  mov %CALL_STACK_POINTER, %CALL_STACK_BASE_POINTER
+.endm
+
+.macro DismantleSimpleCallStackFrame
+  mov %CALL_STACK_BASE_POINTER, %CALL_STACK_POINTER
+  _CallStackPopGeneral %CALL_STACK_BASE_POINTER
+.endm
 
 //Allocates a Data Stack,
 //prepares it's stack head (%rbx) and base ( (%rbp) ) pointers
@@ -564,12 +719,12 @@ SYSCALL_MMAP_SUCCESS\@:
   add %KERNEL_INTEGER64_ARGUMENT2, %DATA_STACK_POINTER
   // _DataStackAdvance // safely bump down by one entry, out of neighboring page.
 
+  PrepareSimpleCallStackFrame
   // ensures that BOTTOM_OF_CALL_STACK remembers our Data Stack Base Pointer for us.
   _CallStackPushGeneral %DATA_STACK_POINTER
   // Finish fixed length preamble, begin child frame in earnest,
   // and this way BOTTOM_OF_CALL_STACK aka (%CALL_STACK_BASE_POINTER)
   // can always tell us where the bottom of the data stack is as well. :)
-  mov %CALL_STACK_POINTER, %CALL_STACK_BASE_POINTER
 .endm
 
 // Is this Linux only, or does it also work the same for Windows/BSD/Mac?
@@ -629,10 +784,18 @@ ClearDataStack\@:
 
 .macro _SIMDPush register=%xmm0
 _SIMDPush\@:
-  // grow stack pointer downward width of a SIMD register.
-  sub $SIMD_WIDTH, %DATA_STACK_POINTER
+  _DataStackAdvance
   movdqa \register, DATA_STACK0
 .endm
+
+// I have a better version being tested in trim_whitespace_left.S
+// // clobbers %xmm0
+// .macro _RAMDataStackPush pointer:req
+// _SIMDPush\@:
+//   _DataStackAdvance
+//   movdqa \pointer, %xmm0
+//   movdqa %xmm0, DATA_STACK0
+// .endm
 
 // Copies the value in a 64 bit scalar aka "general purpose" register
 // directly into EVERY lane of an SIMD register.
@@ -641,7 +804,7 @@ _SIMDPush\@:
 // for future expansion.
 // luckily, in AVX2 and AVX512 there's a single opcode for it lel!
 .macro _Scalar64BroadcastToSIMD128 scalarRegister:req receiveRegister:req
-_ScalarBroadcastToSIMD\@:
+_Scalar64BroadcastToSIMD128\@:
   pinsrq $0, \scalarRegister, \receiveRegister
   pinsrq $1, \scalarRegister, \receiveRegister
 .endm
@@ -715,9 +878,9 @@ Bitfield64Index\@:
   // least significant half gets most recent data lane
   pinsrq $0, %DATA_STACK_POINTER, %xmm1
   // most significant half will be offset into lane 2
-  addq $DATA_SIZE_IN_BYTES, %DATA_STACK_POINTER
+  addq 8, %DATA_STACK_POINTER
   pinsrq $1, %DATA_STACK_POINTER, %xmm1
-  subq $DATA_SIZE_IN_BYTES, %DATA_STACK_POINTER
+  subq 8, %DATA_STACK_POINTER
   // add offsets, yielding target locations in xmm0.
   paddq %xmm1, %xmm0
   _SIMD128GatherBitfield64 indexRegister=%xmm0,receiveRegister=%xmm0
@@ -1059,10 +1222,10 @@ BooleanNot\@:
 // NEW top of stack (only pure valid boolean if input was) => %xmm0
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
-// Tested and passed 2022-04-03T09:57-07:00
+// Tested and passed 2022-04-20T23:21-07:00
 .macro BooleanAnd
 BooleanAnd\@:
-  movdqa %xmm0, DATA_STACK0
+  movdqa DATA_STACK0, %xmm0
   pand DATA_STACK1, %xmm0
   movdqa %xmm0, DATA_STACK1
   DataStackRetreat
@@ -1208,16 +1371,16 @@ _ScalarBranchPrep\@:
 .endm
 
 .macro _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn=FALSE
-  .if forceBranchCallerToReturn
+  .if \forceBranchCallerToReturn
 _ScalarBranchDecideForceCallerToReturn\@:
-    pop %rax
+    ret
   .endif
 .endm
 
 .macro BranchUnconditional destination:req forceBranchCallerToReturn=FALSE
 BranchUnconditional\@:
   call \destination
-  _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 .endm
 
 # Test STACK1 < STACK0
@@ -1230,7 +1393,7 @@ ScalarBranchLessThan\@:
   cmp %rcx, %rax
   jae skip\@ # reject above or equal
   call \destination
-  _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1244,7 +1407,7 @@ ScalarBranchGreaterThan\@:
   cmp %rcx, %rax
   jbe skip\@ # reject below or equal
   call \destination
-  _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1256,7 +1419,7 @@ ScalarBranchEqual\@:
   cmp %rcx, %rax
   jne skip\@ # reject not equal
   call \destination
-  _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1269,7 +1432,7 @@ ScalarBranchAnd\@:
   test %rcx, %rax
   jz skip\@ # reject zero after and
   call \destination
-  _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1283,7 +1446,7 @@ ScalarBranchGreaterThanOrEqual\@:
   cmp %rcx, %rax
   jb skip\@ # reject below
   call \destination
-  _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1297,7 +1460,7 @@ ScalarBranchLessThanOrEqual\@:
   cmp %rcx, %rax
   ja skip\@ # reject above
   call \destination
-  _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1309,7 +1472,7 @@ ScalarBranchNotEqual\@:
   cmp %rcx, %rax
   je skip\@ # reject if equal
   call \destination
-  _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1322,7 +1485,7 @@ ScalarBranchNand\@:
   test %rcx, %rax
   jnz skip\@ # reject nonzero after and
   call \destination
-  _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1382,6 +1545,62 @@ PrintStackMessage\@:
   putNewlineMacro
   call PrintStack
 .endm
+
+// clobbers xmm0
+// tested 2022-04-18
+.macro BranchSIMDTrue destination:req forceBranchCallerToReturn=FALSE
+BranchUnconditional\@:
+  movdqa DATA_STACK0, %xmm0
+  DataStackRetreat
+  pmovmskb %xmm0, %rax
+  cmp $0xFFFF, %rax
+  jnz skip\@
+  call \destination
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+skip\@:
+.endm
+
+// clobbers xmm0
+// tested 2022-04-20T22:59-07:00
+.macro BranchSIMDFalse destination:req forceBranchCallerToReturn=FALSE
+BranchUnconditional\@:
+  movdqa DATA_STACK0, %xmm0
+  DataStackRetreat
+  ptest %xmm0, %xmm0
+  jnz skip\@
+  call \destination
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+skip\@:
+.endm
+
+// clobbers xmm0
+// Untested
+.macro BranchSIMDAnd destination:req forceBranchCallerToReturn=FALSE
+BranchUnconditional\@:
+  DataStackRetreatTwice
+  movdqa DATA_STACK_NEGATIVE2, %xmm0
+  pand DATA_STACK_NEGATIVE1, %xmm0
+  jz skip\@
+  call \destination
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+skip\@:
+.endm
+
+// clobbers xmm0
+// Tested 2022-04-21T00:35-07:00
+.macro BranchSIMDMaskEqual destination:req forceBranchCallerToReturn=FALSE
+BranchUnconditional\@:
+  DataStackRetreatThrice
+  movdqa DATA_STACK_NEGATIVE1, %xmm0
+  pand DATA_STACK_NEGATIVE3, %xmm0
+  pxor DATA_STACK_NEGATIVE2, %xmm0
+  ptest %xmm0, %xmm0
+  jnz skip\@
+  call \destination
+  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+skip\@:
+.endm
+
 
 
 ##### End of macros
