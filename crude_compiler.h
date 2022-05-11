@@ -366,8 +366,13 @@
 #define SIMD_WIDTH_TIMES_3 48
 #define SIMD_WIDTH_TIMES_4 64
 #define CACHE_LINE_WIDTH 64
-// how many bits long is the number describing the width in bytes
-#define SIMD_META_WIDTH 4 
+// how many bits long is the number describing the width in bytes.
+// So for example, N<<SIMD_META_WIDTH == N * SIMD_WIDTH,
+// and N>>SIMD_META_WIDTH == floor(N / SIMD_WIDTH)
+#define SIMD_META_WIDTH 4
+// a bitmask with all zeros except for SIMD_META_WIDTH lowest bits set to ones.
+// ANDing any value by this is the same as modulo'ing by SIMD_WIDTH itself.
+#define SIMD_META_BITMASK 0x0F
 #define CACHE_LINE_META_WIDTH 6
 // A "scalar native" is 64 bits on 64 bit processors. :P
 #define SCALAR_NATIVE_WIDTH_IN_BYTES 8
@@ -563,6 +568,22 @@ _Bitfield64DataStackPushGeneral\@:
   _DataStackAdvance
   mov \register, DATA_STACK0
   mov \register, DATA_STACK0_5
+.endm
+
+.macro _Bitfield64DataStackPushRAM address:req, clobberGeneral=%rax
+_Bitfield64DataStackPushRAM\@:
+  _DataStackAdvance
+  mov \address, \clobberGeneral
+  mov \clobberGeneral, DATA_STACK0
+  mov \clobberGeneral, DATA_STACK0_5
+.endm
+
+.macro _Bitfield64DataStackPushAddress address:req, clobberGeneral=%rax
+_Bitfield64DataStackPushRAM\@:
+  _DataStackAdvance
+  lea \address, \clobberGeneral
+  mov \clobberGeneral, DATA_STACK0
+  mov \clobberGeneral, DATA_STACK0_5
 .endm
 
 // Broadcasts low 8 bits of named 32 or 64 bit
@@ -820,6 +841,119 @@ _SIMD128GatherBitfield64\@:
   pextrq $1, \indexRegister, %rax
   pinsrq $1, (%rax), \receiveRegister
 .endm
+
+// Accepts two scalar registers (any size I think? al/ax/eax/rax?)
+// and sets the "destination" one equal to whichever value
+// is the smallest.
+.macro _ScalarMinimum source=%rdx destination=%rax
+_ScalarMinimum\@:
+  cmp %rdx, %rax
+  cmovg %rdx, %rax # %rax > %rdx? then %rax := %rdx.
+.endm
+
+// Accepts two scalar registers (any size I think? al/ax/eax/rax?)
+// and sets the "destination" one equal to whichever value
+// is the largest.
+.macro _ScalarMaximum source=%rdx destination=%rax
+_ScalarMaximum\@:
+  cmp %rdx, %rax
+  cmovl %rdx, %rax # %rax < %rdx? then %rax := %rdx.
+.endm
+
+// Always clobbers %xmm0
+// Tested and passed 2022-05-11T03:44-07:00
+.macro MinimumSignedInteger64 ClobberSIMD=%xmm1
+MinimumSignedInteger64\@:
+  DataStackRetreat
+  movdqa DATA_STACK0, %xmm0
+  pcmpgtq DATA_STACK_NEGATIVE1, %xmm0
+  movdqa DATA_STACK0, \ClobberSIMD
+  blendvpd DATA_STACK_NEGATIVE1, \ClobberSIMD
+  movdqa \ClobberSIMD, DATA_STACK0
+.endm
+
+// Always clobbers %xmm0
+// Tested and passed 2022-05-11T03:44-07:00
+.macro MinimumUnsignedInteger64 ClobberSIMD1=%xmm1 ClobberSIMD2=%xmm2 ClobberScalar=%rax
+MinimumUnsignedInteger64\@:
+  DataStackRetreat
+  mov $0x8000000000000000, \ClobberScalar
+  _Scalar64BroadcastToSIMD128 scalarRegister=\ClobberScalar,receiveRegister=\ClobberSIMD2
+  movdqa DATA_STACK0, %xmm0
+  pxor \ClobberSIMD2, %xmm0
+  movdqa DATA_STACK_NEGATIVE1, \ClobberSIMD1
+  pxor \ClobberSIMD2, \ClobberSIMD1
+  pcmpgtq \ClobberSIMD1, %xmm0
+  movdqa DATA_STACK0, \ClobberSIMD1
+  blendvpd DATA_STACK_NEGATIVE1, \ClobberSIMD1
+  movdqa \ClobberSIMD1, DATA_STACK0
+.endm
+
+// Tested and passed 2022-05-11T03:44-07:00
+.macro MinimumSignedInteger8 ClobberSIMD=%xmm1
+MinimumSignedInteger8\@:
+  DataStackRetreat
+  movdqa DATA_STACK0, \ClobberSIMD
+  pminsb DATA_STACK_NEGATIVE1, \ClobberSIMD
+  movdqa \ClobberSIMD, DATA_STACK0
+.endm
+
+// Tested and passed 2022-05-11T03:44-07:00
+.macro MinimumUnsignedInteger8 ClobberSIMD=%xmm0
+MinimumUnsignedInteger8\@:
+  DataStackRetreat
+  movdqa DATA_STACK0, \ClobberSIMD
+  pminub DATA_STACK_NEGATIVE1, \ClobberSIMD
+  movdqa \ClobberSIMD, DATA_STACK0
+.endm
+
+// Always clobbers %xmm0
+// Tested and passed 2022-05-11T03:44-07:00
+.macro MaximumSignedInteger64 ClobberSIMD=%xmm1
+MaximumSignedInteger64\@:
+  DataStackRetreat
+  movdqa DATA_STACK0, %xmm0
+  pcmpgtq DATA_STACK_NEGATIVE1, %xmm0
+  movdqa DATA_STACK_NEGATIVE1, \ClobberSIMD
+  blendvpd DATA_STACK0, \ClobberSIMD
+  movdqa \ClobberSIMD, DATA_STACK0
+.endm
+
+// Always clobbers %xmm0
+// Tested and passed 2022-05-11T03:44-07:00
+.macro MaximumUnsignedInteger64 ClobberSIMD1=%xmm1 ClobberSIMD2=%xmm2 ClobberScalar=%rax
+MaximumUnsignedInteger64\@:
+  DataStackRetreat
+  mov $0x8000000000000000, \ClobberScalar
+  _Scalar64BroadcastToSIMD128 scalarRegister=\ClobberScalar,receiveRegister=\ClobberSIMD2
+  movdqa DATA_STACK0, %xmm0
+  pxor \ClobberSIMD2, %xmm0
+  movdqa DATA_STACK_NEGATIVE1, \ClobberSIMD1
+  pxor \ClobberSIMD2, \ClobberSIMD1
+  pcmpgtq \ClobberSIMD1, %xmm0
+  movdqa DATA_STACK_NEGATIVE1, \ClobberSIMD1
+  blendvpd DATA_STACK0, \ClobberSIMD1
+  movdqa \ClobberSIMD1, DATA_STACK0
+.endm
+
+// Tested and passed 2022-05-11T03:44-07:00
+.macro MaximumSignedInteger8 ClobberSIMD=%xmm1
+MaximumSignedInteger8\@:
+  DataStackRetreat
+  movdqa DATA_STACK0, \ClobberSIMD
+  pmaxsb DATA_STACK_NEGATIVE1, \ClobberSIMD
+  movdqa \ClobberSIMD, DATA_STACK0
+.endm
+
+// Tested and passed 2022-05-11T03:44-07:00
+.macro MaximumUnsignedInteger8 ClobberSIMD=%xmm0
+MaximumUnsignedInteger8\@:
+  DataStackRetreat
+  movdqa DATA_STACK0, \ClobberSIMD
+  pmaxub DATA_STACK_NEGATIVE1, \ClobberSIMD
+  movdqa \ClobberSIMD, DATA_STACK0
+.endm
+
 
 // .macro SIMDScatter indexRegister=%xmm1 sendRegister=%xmm0 tempRegister=%xmm2
 //   movdqa (\indexRegister), \sendRegister
@@ -1489,13 +1623,14 @@ ScalarBranchNand\@:
 skip\@:
 .endm
 
-
+// input value should not use a sigil, that will get added in the macro.
 .macro Bitfield64Immediate value:req
 Immediate\@:
   movq $\value, %rax
   _Bitfield64DataStackPushGeneral %rax
 .endm
 
+// input values should not use sigils, those will get added in the macro.
 .macro Bitfield64ImmediateVector128 value1:req value2:req
 ImmediateVector\@:
   movq $\value1, %rax
