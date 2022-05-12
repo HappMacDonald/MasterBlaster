@@ -1,12 +1,22 @@
 #include "libmb_s.h"
 
 # "
+# 2022-05-12T02:05-07:00 current status:
+# Probably time to fall back to the tokenizer for the time being.
+# Appears to work in the general case, but cannot
+# handle more than 4kB input.
+# I was using the following code to manually fuzz test:
+# perl -e '$q = int(rand()*1024); CORE::say STDERR "$q/". ($q%16); CORE::say " "x$q . "OK";' | ( time ./trim_whitespace_left.elf64 )
+# but increasing that "1024" value > 4kib naturally crashes.
+# I have no clear path to improve that,
+# as supporting streaming would have to wait for streaming generator iterable models.
+
 # 2022-05-11T04:21-07:00 current status:
 # OK, all of the min/max verbs have been created and tested.
 # Next up: trim fails on 16+ WS. More research needed.
 #
 # 2022-05-06T23:40-07:00 current status:
-# OK, I've now got ReduceUnaligned generating a "valid mask" to offer along
+# OK, I've now got IterableReduce generating a "valid mask" to offer along
 # with the vector worth of data.
 # Next up, make sure caller is feeding in an accumulator
 # and then teach lambda to use that as well as respecting the new
@@ -91,26 +101,18 @@ inputBufferByteLength:
 inputBuffer: # this area is considered unaligned
   .skip BUFFER_LENGTH
 
-.macro _RAMDataStackPush address:req SIMDClobber=%xmm0 aligned=TRUE
-  .if \aligned
-    movdqa \address, \SIMDClobber
-  .else
-    movdqu \address, \SIMDClobber
-  .endif
-  _SIMDPush \SIMDClobber
-.endm
 
-#define ReduceUnalignedLambda CALL_STACK3
-#define ReduceUnalignedLength CALL_STACK2
-#define ReduceUnalignedDataPointer CALL_STACK1
-#define ReduceUnalignedLastClause CALL_STACK0
+#define IterableReduceLambda CALL_STACK3
+#define IterableReduceLength CALL_STACK2
+#define IterableReduceDataPointer CALL_STACK1
+#define IterableReduceLastClause CALL_STACK0
 
 
 #define LoopNext ret
 
 .macro LoopBail
   add $SCALAR_NATIVE_WIDTH_IN_BYTES, %rsp # silently pop caller address
-  jmp *ReduceUnalignedLastClause # go to last clause instead of returning there.
+  jmp *IterableReduceLastClause # go to last clause instead of returning there.
 .endm
 
 # "
@@ -163,7 +165,7 @@ inputBuffer: # this area is considered unaligned
 # invalid/adversarial N-bit fuzzer chunks anywhere in each payload vector.
 # "
 .text
-ReduceUnaligned:
+IterableReduce:
   # "
   # yeah.. no fscking with alien call frames interior to Crude, a'ight?
   # At least not until I change how primary data stack's pointer is saved. :P
@@ -173,56 +175,61 @@ ReduceUnaligned:
   # in the rare event that is required at all.
   # PrepareSimpleCallStackFrame
   # "
-PrintStackMessage "debug"
+// PrintStackMessage "debug"
   _DataStackPopGeneral %rax # pop lambda address
-  push %rax # set ReduceUnalignedLambda
+  push %rax # set IterableReduceLambda
   _DataStackPopGeneral %rax # pop iterable length pointer
-  pushq (%rax) # set ReduceUnalignedLength
+  pushq (%rax) # set IterableReduceLength
   add $SIMD_WIDTH, %rax # advance to where the data lives
-  push %rax # set ReduceUnalignedDataPointer
-  leaq ReduceUnalignedLast(%rip), %rax
-  push %rax # " set ReduceUnalignedLastClause
+  push %rax # set IterableReduceDataPointer
+  leaq IterableReduceLast(%rip), %rax
+  push %rax # " set IterableReduceLastClause
   #Now Call Stack frame is set up,
   #and all inbound arguments have been popped from the Data Stack,
   #except for the initial accumulator which we'll just leave
   #sitting there for now.
   # "
-ReduceUnalignedLoopStart:
-  mov ReduceUnalignedDataPointer, %rax
+IterableReduceLoopStart:
+  mov IterableReduceDataPointer, %rax
   _RAMDataStackPush address=(%rax),aligned=FALSE #(first vector of data)
   mov $SIMD_WIDTH, %rax
-  cmpq ReduceUnalignedLength, %rax # Do we have more than one vector left to process?
-  jge ReduceUnalignedShortMask # simd_width>=length
+  cmpq IterableReduceLength, %rax # Do we have more than one vector left to process?
+  jge IterableReduceShortMask # simd_width>=length
   # Otherwise, use an "all bytes valid" mask,
   # and we are assured to loop again.
   _SetAllBitsOne %xmm0
   _SIMDPush %xmm0
-ReduceUnalignedCallLambda:
-  mov ReduceUnalignedLambda, %rdx
+IterableReduceCallLambda:
+  mov IterableReduceLambda, %rdx
   call *%rdx
-ReduceUnalignedLoopFinish:
-  cmpq ReduceUnalignedLength, %rax # reloading reg after lambda
+IterableReduceLoopFinish:
+  mov IterableReduceLength, %rax # reloading reg after lambda
   sub $SIMD_WIDTH, %rax
-  js ReduceUnalignedLast
-  mov %rax, ReduceUnalignedLength
-  mov ReduceUnalignedDataPointer, %rax
+  js IterableReduceLast
+  mov %rax, IterableReduceLength
+  mov IterableReduceDataPointer, %rax
   add $SIMD_WIDTH, %rax
-  mov %rax, ReduceUnalignedDataPointer
-  jmp ReduceUnalignedLoopStart
-ReduceUnalignedLast:
+  mov %rax, IterableReduceDataPointer
+  jmp IterableReduceLoopStart
+IterableReduceLast:
   leaq CALL_STACK4, %rsp # tear down fixed size crude callstack frame
   ret
 
-ReduceUnalignedShortMask:
+IterableReduceShortMask:
   # We are shoveling the last vector now,
   # whether that vector is full or not.
   leaq lengthMaskTableMiddle(%rip), %rax
-  sub ReduceUnalignedLength, %rax
+  sub IterableReduceLength, %rax
   movdqu (%rax), %xmm0
   _SIMDPush %xmm0
-  mov ReduceUnalignedLambda, %rdx
-  call *%rdx
-  jmp ReduceUnalignedLast
+  mov IterableReduceLambda, %rdx
+  lea IterableReduceLast(%rip), %rax
+  push %rax # ^^^ Make next ret send you back there
+  # EG, every LoopNext is short circuited into a LoopBail.
+  # %rdx loaded before push to use correct stack offset.
+  jmp *%rdx
+  // call *%rdx
+  // jmp IterableReduceLast
 
 .globl _start
 _start:
@@ -240,10 +247,8 @@ _start:
   Bitfield64Immediate -1 # Accumulator starts at "not found" state.
   _Bitfield64DataStackPushAddress inputBufferByteLength(%rip)
   _Bitfield64DataStackPushAddress lambda(%rip)
-  call ReduceUnaligned # iterate over inputBuffer using lambda
+  call IterableReduce # iterate over inputBuffer using lambda
   _RAMDataStackPush inputBuffer(%rip)
-  Duplicate
-  _Bitfield64DataStackPushAddress inputBufferByteLength(%rip)
   
   PrintStackMessage "very first 16 characters of input, how many whitespace to skip"
 

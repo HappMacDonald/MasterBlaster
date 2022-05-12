@@ -822,14 +822,15 @@ _SIMDPush\@:
   movdqa \register, DATA_STACK0
 .endm
 
-// I have a better version being tested in trim_whitespace_left.S
-// // clobbers %xmm0
-// .macro _RAMDataStackPush pointer:req
-// _SIMDPush\@:
-//   _DataStackAdvance
-//   movdqa \pointer, %xmm0
-//   movdqa %xmm0, DATA_STACK0
-// .endm
+
+.macro _RAMDataStackPush address:req SIMDClobber=%xmm0 aligned=TRUE
+  .if \aligned
+    movdqa \address, \SIMDClobber
+  .else
+    movdqu \address, \SIMDClobber
+  .endif
+  _SIMDPush \SIMDClobber
+.endm
 
 // "
 // Copies the value in a 64 bit scalar aka "general purpose" register
