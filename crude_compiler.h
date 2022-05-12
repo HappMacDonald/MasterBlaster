@@ -1,3 +1,4 @@
+// "
 // Current poor-man's makefile:
 // gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
 
@@ -88,7 +89,7 @@
 // 2022-04-21T0056-0700 current status:
 // OK, I'm writing up a way to loop over the tokens and test for
 // more than one against the input. However, I run into the new snag
-// of "How do I know when I'm done with the loop?".
+// of 'How do I know when I'm done with the loop?'.
 // This is a problem fundamental to Crude:
 // iterables will usually have an end (unless they are endless generators)
 // that tells the code when they need to stop looping.
@@ -357,6 +358,7 @@
 // 3 position is failing, where the target has different values in
 // each lane so I need to find out why.
 // I also need to test "different indices in each lane" after that.
+// "
 
 // SSE-related values.
 // Later expansion to AVX & AVX512 will use .ifdef to define these per platform.
@@ -370,8 +372,9 @@
 // So for example, N<<SIMD_META_WIDTH == N * SIMD_WIDTH,
 // and N>>SIMD_META_WIDTH == floor(N / SIMD_WIDTH)
 #define SIMD_META_WIDTH 4
-// a bitmask with all zeros except for SIMD_META_WIDTH lowest bits set to ones.
+// " a bitmask with all zeros except for SIMD_META_WIDTH lowest bits set to ones.
 // ANDing any value by this is the same as modulo'ing by SIMD_WIDTH itself.
+// "
 #define SIMD_META_BITMASK 0x0F
 #define CACHE_LINE_META_WIDTH 6
 // A "scalar native" is 64 bits on 64 bit processors. :P
@@ -474,7 +477,8 @@
 // This should be exactly 2^24 bytes or 16MiB
 #define DATA_STACK_SIZE 16777216
 
-// sensitive to SIMD_WIDTH :P  I'm too lazy to look up how to do gas variable arithmetic right now.
+// " sensitive to SIMD_WIDTH :P  I'm too lazy to look up how to do gas variable arithmetic right now.
+// "
 #define DATA_STACK_NEGATIVE3 -48(%DATA_STACK_POINTER)
 #define DATA_STACK_NEGATIVE2_5 -40(%DATA_STACK_POINTER)
 #define DATA_STACK_NEGATIVE2 -32(%DATA_STACK_POINTER)
@@ -498,7 +502,8 @@
 #define DATA_STACK7 112(%DATA_STACK_POINTER)
 #define DATA_STACK7_5 120(%DATA_STACK_POINTER)
 
-// sensitive to SCALAR_NATIVE_WIDTH_IN_BYTES :P  I'm too lazy to look up how to do gas variable arithmetic right now.
+// " sensitive to SCALAR_NATIVE_WIDTH_IN_BYTES :P  I'm too lazy to look up how to do gas variable arithmetic right now.
+// "
 #define CALL_STACK_NEGATIVE5 -40(%CALL_STACK_POINTER)
 #define CALL_STACK_NEGATIVE4 -32(%CALL_STACK_POINTER)
 #define CALL_STACK_NEGATIVE3 -24(%CALL_STACK_POINTER)
@@ -521,7 +526,7 @@
 #define MAP_SHARED    0x01 /* Share changes.  */
 #define MAP_PRIVATE   0x02 /* Changes are private.  */
 #define MAP_FIXED     0x10 /* Interpret addr exactly.  */
-#define MAP_ANONYMOUS 0x20 /* Don't use a file.  */
+#define MAP_ANONYMOUS 0x20 /* "Don't use a file."  */
 
 #define TRUE 0xFFFFFFFFFFFFFFFF
 #define FALSE 0
@@ -613,7 +618,7 @@ _Bitfield8DataStackPushGeneral\@:
 .macro Bitfield8ScalarBroadcast
   _SetAllBitsZero %xmm7 // lane 0 new source for every lane
   movdqa DATA_STACK0, %xmm0
-  pshufb %xmm7, %xmm0 // broadcast xmm0's lowest 8 bits to all lanes.
+  pshufb %xmm7, %xmm0 // "broadcast xmm0's lowest 8 bits to all lanes."
   movdqa %xmm0, DATA_STACK0
 .endm
 
@@ -624,7 +629,7 @@ systemExit\@:
   mov $SYSCALL_SYS_EXIT, %SYSCALL_REGISTER
   movq TOP_OF_DATA_STACK, %ALIEN_INTEGER64_ARGUMENT1 // Lane 1 should be shallowest. I think?
   // movq (%rsp),%ALIEN_INTEGER64_ARGUMENT1
-  // don't need to pop call stack or fix parent frame.. just bail! :D
+  // "don't need to pop call stack or fix parent frame.. just bail! :D"
   syscall
 .endm
 
@@ -633,7 +638,7 @@ PushParentOwnedRegisters\@:
   // This one will get used as our data stack pointer
   _CallStackPushGeneral %rbx
 
-  // This is the parent's call stack base pointer
+  // "This is the parent's call stack base pointer"
   _CallStackPushGeneral %rbp
 
   // These are just .. other parent-owned registers by alien ABI standards.
@@ -651,10 +656,10 @@ PopParentOwnedRegisters\@:
   _CallStackPopGeneral %r13
   _CallStackPopGeneral %r12
 
-  // This is the parent's call stack base pointer
+  // "This is the parent's call stack base pointer"
   _CallStackPopGeneral %rbp
 
-  // This register got borrowed long-term for our ABI's data stack pointer
+  // "This register got borrowed long-term for our ABI's data stack pointer"
   _CallStackPopGeneral %rbx
 .endm
 
@@ -668,6 +673,7 @@ PopParentOwnedRegisters\@:
   _CallStackPopGeneral %CALL_STACK_BASE_POINTER
 .endm
 
+// "
 //Allocates a Data Stack,
 //prepares it's stack head (%rbx) and base ( (%rbp) ) pointers
 //stows a "child preamble stack frame" of fixed length with the
@@ -680,10 +686,13 @@ PopParentOwnedRegisters\@:
 // Parent's %r15
 // Child's data stack base pointer
 // That last position gets fed into both %rbp and %rsp.
+// "
 .macro EndAlienCallStackFrame
 EndAlienCallStackFrame\@:
+  // "
   // End parent's stack frame, start fixed length child preamble frame.
   // First up, stowing all parent-owned registers.
+  // "
   PushParentOwnedRegisters
   
   mov $SYSCALL_SYS_MMAP\
@@ -716,7 +725,7 @@ SYSCALL_MMAP_ERROR_HANDLER\@:
   // restore sys_mmap return into first userland argument
   _CallStackPopGeneral %ALIEN_INTEGER64_ARGUMENT1
 
-  // but two's-compliment it first
+  // "but two's-compliment it first"
   mov $0, %r15d
   subq %ALIEN_INTEGER64_ARGUMENT1, %r15
   mov %r15, %ALIEN_INTEGER64_ARGUMENT1
@@ -757,8 +766,10 @@ ReturnToAlienCaller\@:
   // Dump our entire child frame, but leave the preamble intact.
   ClearDataStack
 
+  // "
   // Next we'll deallocate our Data Stack Base Pointer,
   // exuming it from the preamble along the way.
+  // "
   _CallStackPopGeneral %DATA_STACK_POINTER
 
   // flip address back down to bottom of its allocated range.
@@ -778,14 +789,16 @@ ReturnToAlienCaller\@:
     , %KERNEL_INTEGER64_ARGUMENT2
 
   syscall
+  // "
   // Here one can check for errors from the munmap syscall.
   // 0 means success,
   // -4095 through -1 is the two's compliment of an ERRNO error token.
   // Anything else I think should be unreturnable.
   // My strategy today is going to be:
-  // "we are bailing anyway so ignore any error and hastily GTFO".
+  // we are bailing anyway so ignore any error and hastily GTFO.
+  // "
 
-  // Next we'll restore all of the caller's other registers.
+  // "Next we'll restore all of the caller's other registers."
   PopParentOwnedRegisters
   ret
 .endm
@@ -818,22 +831,26 @@ _SIMDPush\@:
 //   movdqa %xmm0, DATA_STACK0
 // .endm
 
+// "
 // Copies the value in a 64 bit scalar aka "general purpose" register
 // directly into EVERY lane of an SIMD register.
 // Currently only coded for 128 bit registers,
 // I need to dream up the best way to make this more general
 // for future expansion.
 // luckily, in AVX2 and AVX512 there's a single opcode for it lel!
+// "
 .macro _Scalar64BroadcastToSIMD128 scalarRegister:req receiveRegister:req
 _Scalar64BroadcastToSIMD128\@:
   pinsrq $0, \scalarRegister, \receiveRegister
   pinsrq $1, \scalarRegister, \receiveRegister
 .endm
 
+// "
 // Gathers all of the Integer64 data found at each memory location in
 // each lane of indexRegister and loads those into the same lanes
 // of receiveRegister.
 // No clobbering goes on here.
+// "
 .macro _SIMD128GatherBitfield64 indexRegister=%xmm1 receiveRegister=%xmm0
 _SIMD128GatherBitfield64\@:
   pextrq $0, \indexRegister, %rax
@@ -842,26 +859,32 @@ _SIMD128GatherBitfield64\@:
   pinsrq $1, (%rax), \receiveRegister
 .endm
 
+// "
 // Accepts two scalar registers (any size I think? al/ax/eax/rax?)
 // and sets the "destination" one equal to whichever value
 // is the smallest.
+// "
 .macro _ScalarMinimum source=%rdx destination=%rax
 _ScalarMinimum\@:
   cmp %rdx, %rax
   cmovg %rdx, %rax # %rax > %rdx? then %rax := %rdx.
 .endm
 
+// "
 // Accepts two scalar registers (any size I think? al/ax/eax/rax?)
 // and sets the "destination" one equal to whichever value
 // is the largest.
+// "
 .macro _ScalarMaximum source=%rdx destination=%rax
 _ScalarMaximum\@:
   cmp %rdx, %rax
   cmovl %rdx, %rax # %rax < %rdx? then %rax := %rdx.
 .endm
 
+// "
 // Always clobbers %xmm0
 // Tested and passed 2022-05-11T03:44-07:00
+// "
 .macro MinimumSignedInteger64 ClobberSIMD=%xmm1
 MinimumSignedInteger64\@:
   DataStackRetreat
@@ -959,11 +982,14 @@ MaximumUnsignedInteger8\@:
 //   movdqa (\indexRegister), \sendRegister
 // .endm
 
+
+// "
 // Pushes current length of stack onto top of stack,
 // which in turn makes it one longer and instantly out of date lol.
 // EG: () Count (0)
 // EG: (9 9 9) Count (9 9 9 3)
 // Current count => Top of stack (all lanes) and %rax
+// "
 .macro Count // waiting on "how do we save base data stack".
 Count\@:
   mov BOTTOM_OF_CALL_STACK, %rax
@@ -972,20 +998,24 @@ Count\@:
   _Bitfield64DataStackPushGeneral %rax
 .endm
 
+// "
 // Pushes a duplicate of the current top of stack onto the stack.
 // EG: (1 2 3 4) Duplicate (1 2 3 4 4)
 // () Duplicate <like all "reads stack contents" ops, undefined probable crash>
 // New (and identical old) top of stack => xmm0
+// "
 .macro Duplicate
 Duplicate\@:
   movdqa DATA_STACK0, %xmm0
   _SIMDPush %xmm0
 .endm
 
+// "
 // Swaps the top two positions on the stack, does not change stack length.
 // EG: (1 2 3 4) Exchange (1 2 4 3)
 // New top of stack (old second item) => xmm0
 // New second item (old top of stack) => xmm1
+// "
 .macro Exchange
 Exchange\@:
   movdqa DATA_STACK0, %xmm1
@@ -994,6 +1024,7 @@ Exchange\@:
   movdqa %xmm0, DATA_STACK0
 .endm
 
+// "
 // Replaces top of stack N with the stack element N places back.
 // 0 does nothing (it fetches 0 and replaces 0 with 0..)
 // 1+ gets older stack elements.
@@ -1002,6 +1033,7 @@ Exchange\@:
 // Ex: (11 22 33 44 0) index -> (11 22 33 44 0)
 // New top of stack => xmm0
 // Current stack pointer => every lane of xmm1
+// "
 .macro Bitfield64Index
 Bitfield64Index\@:
   movdqa DATA_STACK0, %xmm0 // get index
@@ -1031,6 +1063,7 @@ _SetAllBitsOne\@:
   pcmpeqd \register, \register
 .endm
 
+// "
 // Pop top of stack, calculate its two's compliment
 // and push the result.
 // NEW top of stack => %xmm0
@@ -1038,6 +1071,7 @@ _SetAllBitsOne\@:
 // input 1 unit, output 1 unit
 // If output high bit set, then input was a valid Bitfield64.
 // Tested and passed 2022-04-03T02:23-07:00
+// "
 .macro Bitfield64negate
 Bitfield64negate\@:
   movdqa DATA_STACK0, %xmm1
@@ -1046,6 +1080,7 @@ Bitfield64negate\@:
   movdqa %xmm0, DATA_STACK0
 .endm
 
+// "
 // Pop top of stack, calculate its two's compliment
 // and push the result.
 // NEW top of stack => %xmm0
@@ -1053,6 +1088,7 @@ Bitfield64negate\@:
 // input 1 unit, output 1 unit
 // If output high bit set, then input was a valid Bitfield8.
 // Tested and passed 2022-04-17T20:05-07:00
+// "
 .macro Bitfield8negate
 Bitfield8negate\@:
   movdqa DATA_STACK0, %xmm1
@@ -1061,11 +1097,13 @@ Bitfield8negate\@:
   movdqa %xmm0, DATA_STACK0
 .endm
 
+// "
 // NEW top of stack => %xmm0
 // old DATA_STACK1 => %xmm1
 // input 2 unit, output 1 unit
 // If output high bit set, then overflow Bitfield64.
 // Tested and passed 2022-04-03T06:07-07:00
+// "
 .macro Bitfield64add
 Bitfield64add\@:
   movdqa DATA_STACK0, %xmm0
@@ -1075,11 +1113,13 @@ Bitfield64add\@:
   DataStackRetreat
 .endm
 
+// "
 // NEW top of stack => %xmm0
 // old DATA_STACK1 => %xmm1
 // input 2 unit, output 1 unit
 // If output high bit set, then overflow Bitfield8.
 // Tested and passed 2022-04-17T20:05-07:00
+// "
 .macro Bitfield8add
 Bitfield8add\@:
   movdqa DATA_STACK0, %xmm0
@@ -1089,6 +1129,7 @@ Bitfield8add\@:
   DataStackRetreat
 .endm
 
+// "
 // NEW top of stack => %xmm0
 // Clobbered => %xmm1, %xmm2, %xmm3
 // input 2 unit, output 1 unit
@@ -1097,6 +1138,7 @@ Bitfield8add\@:
 // Tested and passed 2022-04-03T08:15-07:00
 // Does this method return signed or unsigned when input has high bit set?
 // I think in two's compliment those two outcomes are always identical?
+// "
 .macro UnsignedInteger63multiply
 UnsignedInteger63multiply\@:
   movdqa  DATA_STACK0, %xmm0
@@ -1118,12 +1160,14 @@ UnsignedInteger63multiply\@:
 // No Bitfield8 or SignedInteger8 or UnsignedInteger8
 // version of multiplication at this time.
 
+// "
 // NEW top of stack => %xmm0
 // input 2 unit, output 1 unit
 // If output high bit set, then TRUE. Otherwise FALSE.
 // WARNING: always ensure your boolean registers are pure 0 or 1.
 // This macro guarantees that on output.
 // Tested and passed 2022-04-03T06:07-07:00
+// "
 .macro Bitfield64equal
 Bitfield64equal\@:
   movdqa DATA_STACK0, %xmm0
@@ -1132,12 +1176,14 @@ Bitfield64equal\@:
   DataStackRetreat
 .endm
 
+// "
 // NEW top of stack => %xmm0
 // input 2 unit, output 1 unit
 // If output high bit set, then TRUE. Otherwise FALSE.
 // WARNING: always ensure your boolean registers are pure 0 or 1.
 // This macro guarantees that on output.
 // Tested and passed 2022-04-17T20:05-07:00
+// "
 .macro Bitfield8equal
 Bitfield8equal\@:
   movdqa DATA_STACK0, %xmm0
@@ -1146,6 +1192,7 @@ Bitfield8equal\@:
   DataStackRetreat
 .endm
 
+// "
 // test DATA_STACK1 > DATA_STACK0
 // EG: (1 2 3 4) greaterThan -> (1 2 FALSE)
 // NEW top of stack => %xmm0
@@ -1154,6 +1201,7 @@ Bitfield8equal\@:
 // WARNING: always ensure your boolean registers are pure 0 or 1.
 // This macro guarantees that on output.
 // Tested and passed 2022-04-17T20:05-07:00
+// "
 .macro SignedInteger64greaterThan
 SignedInteger64greaterThan\@:
   movdqa DATA_STACK1, %xmm0
@@ -1162,6 +1210,7 @@ SignedInteger64greaterThan\@:
   DataStackRetreat
 .endm
 
+// "
 // test DATA_STACK1 > DATA_STACK0
 // EG: (1 2 3 4) greaterThan -> (1 2 FALSE)
 // NEW top of stack => %xmm0
@@ -1169,6 +1218,7 @@ SignedInteger64greaterThan\@:
 // If output high bit set, then TRUE. Otherwise FALSE.
 // WARNING: always ensure your boolean registers are pure 0 or 1.
 // This macro guarantees that on output.
+// "
 .macro SignedInteger8greaterThan
 SignedInteger8greaterThan\@:
   movdqa DATA_STACK1, %xmm0
@@ -1177,6 +1227,7 @@ SignedInteger8greaterThan\@:
   DataStackRetreat
 .endm
 
+// "
 // DATA_STACK1 will be shifted by DATA_STACK0%64 bits to the right (lesser significance).
 // as of 2022-04-03, tested and it appears as though the lane1 bit shift value is the only one that gets applied to all lanes of the bit shift subject. Disgusting!
 // My reaction: get bent, for SSE level I'll do the bit shift operations in general registers. For AVX+ levels I'll probably shuffle vectors.. but I WILL get per lane shifts like Gawd intended, ISA be damned!
@@ -1187,6 +1238,7 @@ SignedInteger8greaterThan\@:
 // input 2 unit, output 1 unit
 // If output high bit set, then count must have been zero and source unchanged.
 // Tested and passed 2022-04-03T14:53-07:00
+// "
 .macro Bitfield64bitShiftDownZeroPad
 Bitfield64bitShiftDownZeroPad\@:
   movq DATA_STACK0, %rcx
@@ -1205,6 +1257,7 @@ Bitfield64bitShiftDownZeroPad\@:
 // for some ideas on perhaps emulating some, if they ever
 // become seriously needed.
 
+// "
 // DATA_STACK1 will be shifted by DATA_STACK0%64 bits to the left (greater significance).
 // as of 2022-04-03, tested and it appears as though the lane1 bit shift value is the only one that gets applied to all lanes of the bit shift subject. Disgusting!
 // My reaction: get bent, for SSE level I'll do the bit shift operations in general registers. For AVX+ levels I'll probably shuffle vectors.. but I WILL get per lane shifts like Gawd intended, ISA be damned!
@@ -1216,6 +1269,7 @@ Bitfield64bitShiftDownZeroPad\@:
 // If output high bit set, then overflow Bitfield64.
 // Overflow without high bit set is also possible. Just.. don't overflow jeez.
 // Tested and passed 2022-04-03T14:53-07:00
+// "
 .macro Bitfield64bitShiftUpZeroPad
 Bitfield64bitShiftUpZeroPad\@:
   movq DATA_STACK0, %rcx
@@ -1229,6 +1283,7 @@ Bitfield64bitShiftUpZeroPad\@:
   DataStackRetreat
 .endm
 
+// "
 // DATA_STACK1 will be shifted by DATA_STACK0%64 bits to the right (lesser significance).
 // Bits shifted off the end of each item will be put into most significant
 // positions. No extra positions such as Carry are traded from
@@ -1244,6 +1299,7 @@ Bitfield64bitShiftUpZeroPad\@:
 // If output high bit set, then overflow Bitfield64.
 // Overflow without high bit set is also possible. Just.. don't overflow jeez.
 // Tested and passed 2022-04-03T14:53-07:00
+// "
 .macro Bitfield64bitRotateDown
 Bitfield64bitRotateDown\@:
   movb DATA_STACK0, %cl
@@ -1257,6 +1313,7 @@ Bitfield64bitRotateDown\@:
   DataStackRetreat
 .endm
 
+// "
 // DATA_STACK1 will be shifted by DATA_STACK0%64 bits to the right (lesser significance).
 // Bits shifted off the end of each item will be put into most significant
 // positions. No extra positions such as Carry are traded from
@@ -1270,6 +1327,7 @@ Bitfield64bitRotateDown\@:
 // If output high bit set, then overflow Bitfield64.
 // Overflow without high bit set is also possible. Just.. don't overflow jeez.
 // Tested and passed 2022-04-03T14:53-07:00
+// "
 .macro Bitfield64bitRotateUp
 Bitfield64bitRotateUp\@:
   movb DATA_STACK0, %cl
@@ -1283,6 +1341,7 @@ Bitfield64bitRotateUp\@:
   DataStackRetreat
 .endm
 
+// "
 // DATA_STACK0 will be set to all 0 if high bit is 0, or all 1 if high bit is 1.
 // EG: (-1) castToBoolean -> (0xFFFFFFFFFFFFFFFF) aka Boolean TRUE
 // EG: (0) castToBoolean -> (0) aka Boolean FALSE
@@ -1291,6 +1350,7 @@ Bitfield64bitRotateUp\@:
 // NEW top of stack => %xmm0
 // OLD top of stack => %xmm1
 // input 1 unit, output 1 unit
+// "
 .macro Bitfield64castToBoolean
 Bitfield64castToBoolean\@:
   movdqa DATA_STACK0, %xmm1 // Bitfield64 to cast
@@ -1300,6 +1360,7 @@ Bitfield64castToBoolean\@:
   DataStackRetreat
 .endm
 
+// "
 // DATA_STACK0 will be set to all 0 if high bit is 0, or all 1 if high bit is 1.
 // EG: (-1) castToBoolean -> (0xFF) aka Boolean TRUE
 // EG: (0) castToBoolean -> (0) aka Boolean FALSE
@@ -1309,6 +1370,7 @@ Bitfield64castToBoolean\@:
 // OLD top of stack => %xmm1
 // input 1 unit, output 1 unit
 // Tested and passed 2022-04-17T20:05-07:00
+// "
 .macro Bitfield8castToBoolean
 Bitfield8castToBoolean\@:
   movdqa DATA_STACK0, %xmm1 // Bitfield8 to cast
@@ -1317,24 +1379,29 @@ Bitfield8castToBoolean\@:
   movdqa %xmm0, DATA_STACK0
 .endm
 
+// "
 // EG: () BooleanPushTrue (TRUE)
 // NEW top of stack (always TRUE) => %xmm0
 // Tested and passed 2022-04-03T09:57-07:00
+// "
 .macro BooleanPushTrue
 BooleanPushTrue\@:
   _SetAllBitsOne register=%xmm0
   _SIMDPush %xmm0
 .endm
 
+// "
 // EG: () BooleanPushFalse (FALSE)
 // NEW top of stack (always FALSE) => %xmm0
 // Tested and passed 2022-04-03T09:57-07:00
+// "
 .macro BooleanPushFalse
 BooleanPushFalse\@:
   _SetAllBitsZero register=%xmm0
   _SIMDPush %xmm0
 .endm
 
+// "
 // EG: (1 2 3 TRUE) BooleanNot (1 2 3 FALSE)
 // EG: (1 2 3 FALSE) BooleanNot (1 2 3 TRUE)
 // EG: (1 2 3 [something that would cast to TRUE]) BooleanNot (1 2 3 [something that would cast to FALSE]), and vice versa.
@@ -1342,6 +1409,7 @@ BooleanPushFalse\@:
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
 // Tested and passed 2022-04-03T09:57-07:00
+// "
 .macro BooleanNot
 BooleanNot\@:
   _SetAllBitsOne register=%xmm0
@@ -1349,6 +1417,7 @@ BooleanNot\@:
   movdqa %xmm0, DATA_STACK0
 .endm
 
+// "
 // EG: (1 7 TRUE FALSE) BooleanAnd (1 7 FALSE)
 // EG: (6 9 FALSE TRUE) BooleanAnd (6 9 FALSE)
 // EG: (666 FALSE FALSE) BooleanAnd (666 FALSE)
@@ -1357,6 +1426,7 @@ BooleanNot\@:
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
 // Tested and passed 2022-04-20T23:21-07:00
+// "
 .macro BooleanAnd
 BooleanAnd\@:
   movdqa DATA_STACK0, %xmm0
@@ -1365,6 +1435,7 @@ BooleanAnd\@:
   DataStackRetreat
 .endm
 
+// "
 // EG: (1 7 TRUE FALSE) BooleanOr (1 7 FALSE)
 // EG: (6 9 FALSE TRUE) BooleanOr (6 9 TRUE)
 // EG: (666 FALSE FALSE) BooleanOr (666 TRUE)
@@ -1373,6 +1444,7 @@ BooleanAnd\@:
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
 // Tested and passed 2022-04-03T09:57-07:00
+// "
 .macro BooleanOr
 BooleanOr\@:
   movdqa %xmm0, DATA_STACK0
@@ -1381,6 +1453,7 @@ BooleanOr\@:
   DataStackRetreat
 .endm
 
+// "
 // EG: (1 7 TRUE FALSE) BooleanXor (1 7 TRUE)
 // EG: (6 9 FALSE TRUE) BooleanXor (6 9 FALSE)
 // EG: (666 FALSE FALSE) BooleanXor (666 FALSE)
@@ -1389,6 +1462,7 @@ BooleanOr\@:
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
 // Tested and passed 2022-04-03T09:57-07:00
+// "
 .macro BooleanXor
 BooleanXor\@:
   movdqa %xmm0, DATA_STACK0
@@ -1397,10 +1471,12 @@ BooleanXor\@:
   DataStackRetreat
 .endm
 
+// "
 //Consumes in pop order: A, B, and Mask.
 // Returns A and B blended such that Mask lanes that cast to True (high bit set)
 // shine through the A term, while cast to false (high bit unset)
 // shine through the B term.
+// "
 .macro Bitfield64MaskBlend
 Bitfield64MaskBlend\@:
   movdqa DATA_STACK0, %xmm0 # Load the mask
@@ -1410,11 +1486,13 @@ Bitfield64MaskBlend\@:
   movdqa %xmm1, DATA_STACK0 # replace old A with new answer.
 .endm
 
+// "
 //Consumes in pop order: A, B, and Mask.
 // Returns A and B blended such that Mask lanes that cast to True (high bit set)
 // shine through the A term, while cast to false (high bit unset)
 // shine through the B term.
 // Tested and passed 2022-04-17T20:05-07:00
+// "
 .macro Bitfield8MaskBlend
 Bitfield8MaskBlend\@:
   movdqa DATA_STACK0, %xmm0 # Load the mask
@@ -1424,6 +1502,7 @@ Bitfield8MaskBlend\@:
   movdqa %xmm1, DATA_STACK0 # replace old A with new answer.
 .endm
 
+// "
 # Consumes 3 arguments from the stack. In push order they are:
 # * 2:test Mask:Boolean
 # * 1:Data argument:Raw64
@@ -1437,6 +1516,7 @@ Bitfield8MaskBlend\@:
 # Clobber.. everything is fair game due to lambda that gets run.
 # %xmm0 = what the test mask was initially
 # %xmm1 = new top of stack (blended result)
+// "
 .macro Bitfield64ConditionalMaskBlendOneArgument
 Bitfield64ConditionalMaskBlendOneArgument\@:
   _DataStackPopGeneral %rdx # get subroutine to call from DATA_STACK0 lane #1
@@ -1460,6 +1540,7 @@ skip\@:
   movdqa %xmm1, DATA_STACK0 # replace remaining argument with final result
 .endm
 
+// "
 # Consumes 3 arguments from the stack. In push order they are:
 # * 2:test Mask:Boolean
 # * 1:Data argument:Raw64
@@ -1473,6 +1554,7 @@ skip\@:
 # Clobber.. everything is fair game due to lambda that gets run.
 # %xmm0 = what the test mask was initially
 # %xmm1 = new top of stack (blended result)
+// "
 .macro Bitfield8ConditionalMaskBlendOneArgument
 Bitfield8ConditionalMaskBlendOneArgument\@:
   _DataStackPopGeneral %rdx # get subroutine to call from DATA_STACK0 lane #1
@@ -1517,10 +1599,12 @@ BranchUnconditional\@:
   _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
 .endm
 
+// "
 # Test STACK1 < STACK0
 # signed or unsigned is controlled by data type mode,
 # which isn't yet implemented so always unsigned until then.
 # If true then branch. If false, do nothing.
+// "
 .macro ScalarBranchLessThan destination:req forceBranchCallerToReturn=FALSE
   _ScalarBranchPrep
 ScalarBranchLessThan\@:
@@ -1531,10 +1615,12 @@ ScalarBranchLessThan\@:
 skip\@:
 .endm
 
+// "
 # Test STACK1 > STACK0
 # signed or unsigned is controlled by data type mode,
 # which isn't yet implemented so always unsigned until then.
 # If true then branch. If false, do nothing.
+// "
 .macro ScalarBranchGreaterThan destination:req forceBranchCallerToReturn=FALSE
   _ScalarBranchPrep
 ScalarBranchGreaterThan\@:
@@ -1570,10 +1656,12 @@ ScalarBranchAnd\@:
 skip\@:
 .endm
 
+// "
 # Test STACK1 >= STACK0
 # signed or unsigned is controlled by data type mode,
 # which isn't yet implemented so always unsigned until then.
 # If true then branch. If false, do nothing.
+// "
 .macro ScalarBranchGreaterThanOrEqual destination:req forceBranchCallerToReturn=FALSE
   _ScalarBranchPrep
 ScalarBranchGreaterThanOrEqual\@:
@@ -1584,10 +1672,12 @@ ScalarBranchGreaterThanOrEqual\@:
 skip\@:
 .endm
 
+// "
 # Test STACK1 <= STACK0
 # signed or unsigned is controlled by data type mode,
 # which isn't yet implemented so always unsigned until then.
 # If true then branch. If false, do nothing.
+// "
 .macro ScalarBranchLessThanOrEqual destination:req forceBranchCallerToReturn=FALSE
   _ScalarBranchPrep
 ScalarBranchLessThanOrEqual\@:
