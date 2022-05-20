@@ -2,6 +2,91 @@
 // Current poor-man's makefile:
 // gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
 
+// 2022-05-14T07:50-07:00 current status:
+// I'unno man, I should just make the IteratableRAM generator
+// handle the offsets as bytes, and if the state is client-modifiable
+// (like a stack of vectors for example) then client can shift the byte offset.
+
+// 2022-05-13T04:10-07:00 current status:
+// As of May 13, we have a "IterableReduce" verb that works over
+// iterables that are:
+// * UnsignedInterger64 ByteLength
+// * UnsignedInterger64 ByteLength (duplicate)
+// * [however many you need to fill one vector]
+// * VectorArray of data
+// Starting today, I want to rework that tested-and-working approach
+// into something different.
+// I want every Iterator to be a Generator.
+// A generator is a macro that consumes a fixed number of vectors of
+// "state" from the stack, and replaces it with: 1. the "next" state, 2. the vector of data
+// indicated by the last state, and 3. the valid bitmask over said vector.
+// Each generator can offer it's own constraints on what bitmasks are valid
+// to expect from it. Many of mine for example will guarantee that
+// all bits in the same byte/Bitfield8 will hold the same value
+// (eg, that its a bytemask).
+// I WAS thinking that verbs like Reduce could treat a generator like a black
+// box, but now I am leaning more towards disbanding "general iterator verbs"
+// in favor of "caller uses this generator however they feel like".
+// For example, I feel like reduce over a generator boils away completely into a
+// trivial problem for the caller.
+// Generators are unfettered from Crude constraints, being Crude
+// verbs themselves. (Although Crude users can make their own too)
+// There will also be (at least) two broad types of generator
+// ("iterable" is the subject and/or product of a generator):
+// Random Access and Stream.
+// The difference is that caller is allowed to hold multiple state instances
+// over the same iterable of a Random Access Stream, and those generators
+// probably come with seek facilities (verbs? helpers? something else?)
+// that I haven't worked out the nature of yet since tokenizer is not seeking yet.
+// Stream Iterables "forget their past". Once you've pulled a vector using a
+// state, that state is not guaranteed to be valid anymore, and you aren't
+// offered any opportunities to seek.
+// -----
+// Tokenizer will use, in particular:
+// == IterableRAM (Random Access Iterable)
+// It's state vector will consist of:
+// Pointer to the beginning of the RAM Iterable described above (length at beginning)
+// Current Byte offset
+//
+// == IterableFilemap (Stream Iterable)
+// (IterableRAM) inputs (pointer and current byte offset)
+// Kernel Filehandle
+// Buffer size in bytes. [buffer.length only indicates valid bytes in current buffer-worth of data].
+//
+// (below will probably not be used by tokenizer)
+// == IterableDefoam (Stream Iterable)
+// You pass it another generator function and ITS state,
+// as well as an accumulator vector and mask.
+// STOP CODE: this is where it feels like things are getting problematic.
+// IterableDefoam will produce a guaranteed left-packed bitfield concatenated
+// onto your accumulator, further guaranteed to end the full iterable
+// at the end of the result mask it gives you.
+// Calling it again after that will leave input accumulator untouched.
+// It operates by pulling vectors from the argument generator,
+// packing all bits to the left and concatenating them onto the accumulator,
+// until either it fills a whole vector: then it returns
+// accumulator and "all valid" mask;
+// or it gets a "no valid" mask from its argument generator:
+// then it returns the accumulator thus far and whatever mask describes it.
+
+// == IterableNextToken (possibly caller-land, stream iterable)
+// State should envelope an IterableFilemap, and a "last found token" vector.
+// It will pull vectors from IterableFilemap searching for an end to whitespace
+// from it's previous position, and once it finds an end to whitespace it
+// will shift the filemap byte offset forward by that many bytes, and perform
+// a token match attempt.
+// 
+//
+// == Eventually, IterableFileMMAP (Random Access Iterable, with seek performance penalty)
+// This will be a lot like IterableFilemap except using the MMAP facility.
+// Details not yet decided as I'm not YET using it, but I know it may inevitably
+// get drafted into service.
+// 
+// ------
+// Current plan is to define input source code as an IterableFilemap,
+// and token dictionary as an IterableRAM.
+
+
 // 2022-04-22T14:35-07:00 planning note:
 // Hmm, I've had a potential breakthrough.
 // I think I can make `reduce` parallelizable. 🤓
@@ -575,6 +660,7 @@ _Bitfield64DataStackPushGeneral\@:
   mov \register, DATA_STACK0_5
 .endm
 
+# Broadcast Push CONTENTS of a given ALIGNED Qword onto data stack
 .macro _Bitfield64DataStackPushRAM address:req, clobberGeneral=%rax
 _Bitfield64DataStackPushRAM\@:
   _DataStackAdvance
@@ -583,10 +669,11 @@ _Bitfield64DataStackPushRAM\@:
   mov \clobberGeneral, DATA_STACK0_5
 .endm
 
+# Broadcast Push ADDRESS itself onto data stack.
 .macro _Bitfield64DataStackPushAddress address:req, clobberGeneral=%rax
-_Bitfield64DataStackPushRAM\@:
+_Bitfield64DataStackPushAddress\@:
   _DataStackAdvance
-  lea \address, \clobberGeneral
+  leaq \address, \clobberGeneral
   mov \clobberGeneral, DATA_STACK0
   mov \clobberGeneral, DATA_STACK0_5
 .endm
@@ -822,14 +909,22 @@ _SIMDPush\@:
   movdqa \register, DATA_STACK0
 .endm
 
-
-.macro _RAMDataStackPush address:req SIMDClobber=%xmm0 aligned=TRUE
+.macro _DataStackPushFromRAM address:req SIMDClobber=%xmm0 aligned=TRUE
   .if \aligned
     movdqa \address, \SIMDClobber
   .else
     movdqu \address, \SIMDClobber
   .endif
   _SIMDPush \SIMDClobber
+.endm
+
+.macro _DataStackCopyToRAM address:req SIMDClobber=%xmm0 aligned=TRUE
+  movdqa DATA_STACK0, \SIMDClobber
+  .if \aligned
+    movdqa \SIMDClobber, \address
+  .else
+    movdqu \SIMDClobber, \address
+  .endif
 .endm
 
 // "
@@ -1045,9 +1140,9 @@ Bitfield64Index\@:
   // least significant half gets most recent data lane
   pinsrq $0, %DATA_STACK_POINTER, %xmm1
   // most significant half will be offset into lane 2
-  addq 8, %DATA_STACK_POINTER
+  addq $SCALAR_NATIVE_WIDTH_IN_BYTES, %DATA_STACK_POINTER
   pinsrq $1, %DATA_STACK_POINTER, %xmm1
-  subq 8, %DATA_STACK_POINTER
+  subq $SCALAR_NATIVE_WIDTH_IN_BYTES, %DATA_STACK_POINTER
   // add offsets, yielding target locations in xmm0.
   paddq %xmm1, %xmm0
   _SIMD128GatherBitfield64 indexRegister=%xmm0,receiveRegister=%xmm0
@@ -1827,8 +1922,16 @@ BranchUnconditional\@:
 skip\@:
 .endm
 
-
+// UnderTested
+.macro indexedRAMtoStack metaIndex=0 basePointer:req ClobberRegisterSIMD=%xmm0 ClobberRegisterScalarA=%rax ClobberRegisterScalarB=%rcx
+  Bitfield64Immediate \metaIndex
+  Bitfield64Index
+  mov DATA_STACK0, \ClobberRegisterScalarA // scoop up index
+  shl $SIMD_META_WIDTH, \ClobberRegisterScalarA // convert to number of SIMD widths
+  lea \basePointer, \ClobberRegisterScalarB // get RAM base pointer
+  add \ClobberRegisterScalarB, \ClobberRegisterScalarA // Add to index number of SIMD widths
+  movdqa (\ClobberRegisterScalarA), \ClobberRegisterSIMD // xmm0 now has contents of index row out of RAM
+  movdqa \ClobberRegisterSIMD, DATA_STACK0
+.endm
 
 ##### End of macros
-
-

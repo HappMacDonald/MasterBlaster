@@ -167,6 +167,127 @@ End:
   ret
 
 
+# "
+# This metafunction consumes the following stack arguments in push order:
+# * pre-call top of stack (accumulator etc should be kept here)
+# * Iterable RAM buffer address (pointer to byteLength followed by data)
+# * Number of bytes from which to start reading into RAM buffer
+# * lambda address
+# Then it repeatedly invokes the lambda.
+# With each invocation, it leaves:
+# * the current state of the accumulator,
+# * a one vector-sized chunk of data, SOME bytes of which are valid,
+# * and a mask of which bytes are valid (0xFF/TRUE=valid, 0x00/FALSE=invalid).
+# It is lambda's responsibility to properly handle every possible permutation
+# of valid/invalid bytes via this mask, ensuring that invalid bytes do not
+# affect the accumulator.
+# Lambda must leave only the new accumulator on the stack.
+# Maybe someday later I'll pair the accumulator with a lambda/caller-controlled
+# mask, but I don't feel that's necessary just yet.
+# == DETAILS AAAAAH
+# For example, if mask = FFFFFF00 and input = ABCX, lambda must output an
+# identical accumulator this round to if mask = FF00FFFF and input = AYBC.
+# lambda IS guaranteed that whole (8-bit) bytes will be either valid or invalid,
+# and that if you isolated only the valid bytes from this chunk, they would
+# be both in order and contiguous bytes from the iterable.
+# For now I will also tentatively offer the guarantee of lane confluence:
+# ..if caller intends data to be acted on with a maximum lane size of N bits —
+# where N=2^k where k>=3 —
+# then through some mechanism I have yet to perfect I will guarantee that
+# valid/invalid bytes will also only ever appear in groupings N bits wide,
+# and thus that said groupings will also pack evenly into the vector.
+# EG (How I am arriving at this guarantee so far):
+# Creator of iterable is relied upon to ensure iterable's length is
+# a multiple of N bits, and last modifier of iterable is relied upon
+# to ensure that the sanctity of every N-bit data chunk is respected
+# (whatever that means to the coder)..
+# AND any possible iterable fragmentation I am trying to
+# reserve liberty for in the future will yield to caller demands of a minimum
+# "block" size of N-bits.
+# I think one day I would like some kind of test suite to allow coders and
+# compiler makers to do a shakedown of a given lambda, whether it is honoring
+# this commitment or not. Shakedown test could run a version of the reduce
+# metafunction (and matching variant of the crude verbs) that don't even have
+# to run on the SIMD registers and accepts an "N-bit confluence" request hint,
+# but then calls lambda with fuzzers of input data vectors and masks
+# of varying 2^k*Nbit sizes, and randomized
+# accumulators, and tests whether lambda always "accumulates" any given
+# random input iterable (both end-value and every intermediate confluence value)
+# regardless of how said iterable gets sliced up into N-bit chunks, and
+# regardless of how said N-bit chunks get re-packed into vectors along with
+# invalid/adversarial N-bit fuzzer chunks anywhere in each payload vector.
+# "
+.text
+.globl IterableRAM # Warning! renamed from IterableRAM, AND call order changed!
+IterableRAM:
+  # "
+  # yeah.. no fscking with alien call frames interior to Crude, a'ight?
+  # At least not until I change how primary data stack's pointer is saved. :P
+  # Which I'm not sold on doing yet anyway.
+  # Long story short, Crude procedures should not require a call stack
+  # base pointer. They should just use fixed size callstack frames,
+  # in the rare event that is required at all.
+  # // PrepareSimpleCallStackFrame
+  # "
+  _DataStackPopGeneral %rax # pop lambda address
+  push %rax # set IterableRAMLambda
+  _DataStackPopGeneral %rcx # pop byte offset
+  _DataStackPopGeneral %rax # pop iterable length pointer
+  pushq (%rax) # set IterableRAMLength
+  add $SIMD_WIDTH, %rax # Advance to where the data lives
+  add %rcx, %rax # Advance farther to our desired byte offset
+  push %rax # set IterableRAMDataPointer
+  leaq IterableRAMLast(%rip), %rax
+  push %rax # " set IterableRAMLastClause
+  #Now Call Stack frame is set up,
+  #and all inbound arguments have been popped from the Data Stack,
+  #except for the initial accumulator which we'll just leave
+  #sitting there for now.
+  # "
+IterableRAMLoopStart:
+  mov IterableRAMDataPointer, %rax
+  _DataStackPushFromRAM address=(%rax) #(first vector of data)
+  mov $SIMD_WIDTH, %rax
+  cmpq IterableRAMLength, %rax # Do we have more than one vector left to process?
+  jge IterableRAMShortMask # simd_width>=length
+  # Otherwise, use an "all bytes valid" mask,
+  # and we are assured to loop again.
+  _SetAllBitsOne %xmm0
+  _SIMDPush %xmm0
+IterableRAMCallLambda:
+  mov IterableRAMLambda, %rdx
+  call *%rdx
+IterableRAMLoopFinish:
+  mov IterableRAMLength, %rax # reloading reg after lambda
+  sub $SIMD_WIDTH, %rax
+  js IterableRAMLast
+  mov %rax, IterableRAMLength
+  mov IterableRAMDataPointer, %rax
+  add $SIMD_WIDTH, %rax
+  mov %rax, IterableRAMDataPointer
+  jmp IterableRAMLoopStart
+IterableRAMLast:
+  leaq CALL_STACK4, %rsp # tear down fixed size crude callstack frame
+  ret
+
+IterableRAMShortMask:
+  # We are shoveling the last vector now,
+  # whether that vector is full or not.
+  leaq lengthMaskTableMiddle(%rip), %rax
+  sub IterableRAMLength, %rax
+  movdqu (%rax), %xmm0
+  _SIMDPush %xmm0
+  mov IterableRAMLambda, %rdx
+  lea IterableRAMLast(%rip), %rax
+  push %rax # ^^^ Make next ret send you back there
+  # EG, every LoopNext is short circuited into a LoopBail.
+  # %rdx loaded before push to use correct stack offset.
+  jmp *%rdx
+
+
+
+
+
 	.data
 .global TrigentasenaryUppercaseDigits
 TrigentasenaryUppercaseDigits:
@@ -195,3 +316,7 @@ ALL_LANES_0x3F: // That's 63dec, or 0011 1111 binary
   .quad 0x3F,0x3F
   .quad 0x3F,0x3F
 
+lengthMaskTable:
+  .skip SIMD_WIDTH, 0xFF
+lengthMaskTableMiddle:
+  .skip SIMD_WIDTH, 0x00

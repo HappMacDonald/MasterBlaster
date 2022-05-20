@@ -101,3 +101,16 @@ da16 = destinationAddress + 16
   SSE42_memset128BitBlocks stamp=\stamp,destinationAddress=\destinationAddress,repeat=\repeat,currentIndex=currentIndex
 .endm
 
+#define IterableRAMLambda CALL_STACK3
+#define IterableRAMLength CALL_STACK2
+#define IterableRAMDataPointer CALL_STACK1
+#define IterableRAMLastClause CALL_STACK0
+
+
+#define LoopNext ret
+
+.macro LoopBail
+  add $SCALAR_NATIVE_WIDTH_IN_BYTES, %rsp # silently pop caller address
+  jmp *IterableRAMLastClause # go to last clause instead of returning there.
+.endm
+
