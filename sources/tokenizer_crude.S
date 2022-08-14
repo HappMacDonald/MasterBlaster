@@ -41,7 +41,7 @@ scanTokenLoop:
   // , raw chunk of input bytes to scan
   // , raw readout of first token to compare.
   // , mask of valid bytes in first token to compare
-  BranchSIMDMaskEqual matchFound TRUE
+  VectorBranchMaskEqual matchFound TRUE
   
   ret
 

@@ -1,6 +1,32 @@
 #include "libmb_s.h"
 #include "tokenizer_tokens.h"
 
+// 2022-05-21T08:14-07:00 Current status:
+// Pre-empt: I want an easy to use TDD solution!
+// It doesn't have to focus on buffer overrun bs, but it will be nice
+// for that to be an option in regression cases where it's clear that
+// that wil be needed.
+// Primary issue is: it needs to be easy for me to access/use/run, and
+// it needs to be able to call my assembly routines (which at least
+// tolerate being called C-style. :P
+//
+// Next idea: a new kind of iterator for the tokens.
+// A "loose list of concatenated C-style strings" iterator.
+// This would be a 2-levels-in-one iterator, so it would need
+// loop verbs: LoopBail, LoopNextItem, and LoopNextChunk (of current item).
+// This iterator WILL offer the guarantee that valid bytes will be
+// packed left. It will not however offer the guarantee that presence of
+// invalid bytes proves end of current item.
+
+// 2022-05-20T16:50-07:00 Current status:
+// I modified IterableRAM generator to additionally keep track of the 
+// current byte-count within the iterable data, and I introduced macro
+// `LoopGetByteCount` to allow caller's lambda to get a copy
+// of that on demand.
+// Thus, the whitespace counting appears to be working 100%.
+// Next up: exploit the IterableRAM bytecount input feature
+// to do token matching at the end of said whitespace. 👍
+
 // 2022-05-18T22:34-07:00 Current status:
 // Seems to give correct left-whitespace mod 16 answer for all tested inputs.
 // Now how should I keep track of running byte offset, such that final result
@@ -148,7 +174,9 @@ CountLeftWhitespaceBail:
   pmovmskb %xmm0, %eax # get a bitmask version of our result from %xmm0
   bsf %ax, %ax # How many 0 bits before the first 1 bit?
 //^^^^^^^^^^
-  _Bitfield64DataStackPushGeneral %rax # Push that onto stack as our final answer.
+  _Bitfield64DataStackPushGeneral %rax # Push that onto stack as offset into current vector
+  LoopGetByteCount # get offset OF current vector in iterable
+  Bitfield64add # Add them to get byte offset of first non-whitespace in iterable
   LoopBail
 
   # return value 0x98 = "we hit bottom of IterateOverInput, which is still being written."

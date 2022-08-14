@@ -41,13 +41,13 @@ _start:
   PrintStackMessage "Starting test. Unconditional."
   BranchUnconditional doingStuff
 
-  TestSet "ScalarBranchLessThan","Less_than","<"
-  TestSet "ScalarBranchGreaterThan","Greater_than",">"
-  TestSet "ScalarBranchEqual","Equality","=="
-  TestSet "ScalarBranchAnd","And","&"
-  TestSet "ScalarBranchGreaterThanOrEqual","GreaterThanOrEqual",">="
-  TestSet "ScalarBranchLessThanOrEqual","LessThanOrEqual","<="
-  TestSet "ScalarBranchNotEqual","NotEqual","!="
-  TestSet "ScalarBranchNand","NAND","NAND"
+  TestSet "Bitfield64BranchLessThan","Less_than","<"
+  TestSet "Bitfield64BranchGreaterThan","Greater_than",">"
+  TestSet "Bitfield64BranchEqual","Equality","=="
+  TestSet "Bitfield64BranchAnd","And","&"
+  TestSet "Bitfield64BranchGreaterThanOrEqual","GreaterThanOrEqual",">="
+  TestSet "Bitfield64BranchLessThanOrEqual","LessThanOrEqual","<="
+  TestSet "Bitfield64BranchNotEqual","NotEqual","!="
+  TestSet "Bitfield64BranchNand","NAND","NAND"
 
   systemExit

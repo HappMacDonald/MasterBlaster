@@ -101,10 +101,18 @@ da16 = destinationAddress + 16
   SSE42_memset128BitBlocks stamp=\stamp,destinationAddress=\destinationAddress,repeat=\repeat,currentIndex=currentIndex
 .endm
 
-#define IterableRAMLambda CALL_STACK3
-#define IterableRAMLength CALL_STACK2
-#define IterableRAMDataPointer CALL_STACK1
+#define IterableRAMParentCallStackAddress CALL_STACK5
+#define IterableRAMLambda CALL_STACK4
+#define IterableRAMLength CALL_STACK3
+#define IterableRAMDataPointer CALL_STACK2
+#define IterableRAMByteCounter CALL_STACK1
 #define IterableRAMLastClause CALL_STACK0
+
+#define IterableRAMForeignLambda CALL_STACK5
+#define IterableRAMForeignLength CALL_STACK4
+#define IterableRAMForeignDataPointer CALL_STACK3
+#define IterableRAMForeignByteCounter CALL_STACK2
+#define IterableRAMForeignLastClause CALL_STACK1
 
 
 #define LoopNext ret
@@ -114,3 +122,7 @@ da16 = destinationAddress + 16
   jmp *IterableRAMLastClause # go to last clause instead of returning there.
 .endm
 
+# Pushes byte counter for beginning of current vector onto the stack
+.macro LoopGetByteCount
+  _Bitfield64DataStackPushRAM IterableRAMForeignByteCounter  
+.endm

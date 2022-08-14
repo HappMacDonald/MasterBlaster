@@ -1,4 +1,0 @@
-main : List String -> List System.Invocation
-main Never.never =
-  [ System.exit Never.never 255 ]
-  

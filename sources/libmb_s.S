@@ -237,6 +237,7 @@ IterableRAM:
   add $SIMD_WIDTH, %rax # Advance to where the data lives
   add %rcx, %rax # Advance farther to our desired byte offset
   push %rax # set IterableRAMDataPointer
+  push %rcx # set IterableRAMByteCounter
   leaq IterableRAMLast(%rip), %rax
   push %rax # " set IterableRAMLastClause
   #Now Call Stack frame is set up,
@@ -265,9 +266,12 @@ IterableRAMLoopFinish:
   mov IterableRAMDataPointer, %rax
   add $SIMD_WIDTH, %rax
   mov %rax, IterableRAMDataPointer
+  mov IterableRAMByteCounter, %rax
+  add $SIMD_WIDTH, %rax
+  mov %rax, IterableRAMByteCounter
   jmp IterableRAMLoopStart
 IterableRAMLast:
-  leaq CALL_STACK4, %rsp # tear down fixed size crude callstack frame
+  leaq IterableRAMParentCallStackAddress, %rsp # tear down fixed size crude callstack frame
   ret
 
 IterableRAMShortMask:

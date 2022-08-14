@@ -310,14 +310,14 @@
 
 // 2022-04-16 current status:
 // Working out Ackermann crude function.
-// Current trouble: The ScalarBranch features I've just perfected
+// Current trouble: The Bitfield64Branch features I've just perfected
 // all basically amount to "if(X) { call Y } ... ret"
 // I don't have any else support just yet, and w/o that the "..." above
 // gets run wether X is true or false.
 // Somehow I'd gotten confused and thought that everything down to the return
 // would get skipped in a then clause?
 // Plan B: (first naive idea, lets explore better ones)
-// make ScalarBranches support else. Eww.
+// make Bitfield64Branches support else. Eww.
 // Plan A: Are there any evil callstack manip we can do to skip
 // everything between a call and the caller's ret? ;)
 
@@ -1086,7 +1086,7 @@ MaximumUnsignedInteger8\@:
 // EG: (9 9 9) Count (9 9 9 3)
 // Current count => Top of stack (all lanes) and %rax
 // "
-.macro Count // waiting on "how do we save base data stack".
+.macro Bitfield64Count
 Count\@:
   mov BOTTOM_OF_CALL_STACK, %rax
   sub %DATA_STACK_POINTER, %rax
@@ -1675,16 +1675,16 @@ skip\@:
 .endm
 
 
-.macro _ScalarBranchPrep
-_ScalarBranchPrep\@:
+.macro _Bitfield64BranchPrep
+_Bitfield64BranchPrep\@:
   mov DATA_STACK1, %rax # Only take lane 1
   mov DATA_STACK0, %rcx # Only take lane 1
   DataStackRetreatTwice
 .endm
 
-.macro _ScalarBranchDecideForceCallerToReturn forceBranchCallerToReturn=FALSE
+.macro _Bitfield64BranchDecideForceCallerToReturn forceBranchCallerToReturn=FALSE
   .if \forceBranchCallerToReturn
-_ScalarBranchDecideForceCallerToReturn\@:
+_Bitfield64BranchDecideForceCallerToReturn\@:
     ret
   .endif
 .endm
@@ -1692,7 +1692,7 @@ _ScalarBranchDecideForceCallerToReturn\@:
 .macro BranchUnconditional destination:req forceBranchCallerToReturn=FALSE
 BranchUnconditional\@:
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 .endm
 
 // "
@@ -1701,13 +1701,13 @@ BranchUnconditional\@:
 # which isn't yet implemented so always unsigned until then.
 # If true then branch. If false, do nothing.
 // "
-.macro ScalarBranchLessThan destination:req forceBranchCallerToReturn=FALSE
-  _ScalarBranchPrep
-ScalarBranchLessThan\@:
+.macro Bitfield64BranchLessThan destination:req forceBranchCallerToReturn=FALSE
+  _Bitfield64BranchPrep
+Bitfield64BranchLessThan\@:
   cmp %rcx, %rax
   jae skip\@ # reject above or equal
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1717,38 +1717,38 @@ skip\@:
 # which isn't yet implemented so always unsigned until then.
 # If true then branch. If false, do nothing.
 // "
-.macro ScalarBranchGreaterThan destination:req forceBranchCallerToReturn=FALSE
-  _ScalarBranchPrep
-ScalarBranchGreaterThan\@:
+.macro Bitfield64BranchGreaterThan destination:req forceBranchCallerToReturn=FALSE
+  _Bitfield64BranchPrep
+Bitfield64BranchGreaterThan\@:
   cmp %rcx, %rax
   jbe skip\@ # reject below or equal
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
 # Test STACK1 == STACK0
 # If true then branch. If false, do nothing.
-.macro ScalarBranchEqual destination:req forceBranchCallerToReturn=FALSE
-  _ScalarBranchPrep
-ScalarBranchEqual\@:
+.macro Bitfield64BranchEqual destination:req forceBranchCallerToReturn=FALSE
+  _Bitfield64BranchPrep
+Bitfield64BranchEqual\@:
   cmp %rcx, %rax
   jne skip\@ # reject not equal
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
 # Test STACK1 bitwise_& STACK0
 # EG "do any set bits match between these two bitfields?"
 # If nonzero then branch. If zero, do nothing.
-.macro ScalarBranchAnd destination:req forceBranchCallerToReturn=FALSE
-  _ScalarBranchPrep
-ScalarBranchAnd\@:
+.macro Bitfield64BranchAnd destination:req forceBranchCallerToReturn=FALSE
+  _Bitfield64BranchPrep
+Bitfield64BranchAnd\@:
   test %rcx, %rax
   jz skip\@ # reject zero after and
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1758,13 +1758,13 @@ skip\@:
 # which isn't yet implemented so always unsigned until then.
 # If true then branch. If false, do nothing.
 // "
-.macro ScalarBranchGreaterThanOrEqual destination:req forceBranchCallerToReturn=FALSE
-  _ScalarBranchPrep
-ScalarBranchGreaterThanOrEqual\@:
+.macro Bitfield64BranchGreaterThanOrEqual destination:req forceBranchCallerToReturn=FALSE
+  _Bitfield64BranchPrep
+Bitfield64BranchGreaterThanOrEqual\@:
   cmp %rcx, %rax
   jb skip\@ # reject below
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1774,38 +1774,38 @@ skip\@:
 # which isn't yet implemented so always unsigned until then.
 # If true then branch. If false, do nothing.
 // "
-.macro ScalarBranchLessThanOrEqual destination:req forceBranchCallerToReturn=FALSE
-  _ScalarBranchPrep
-ScalarBranchLessThanOrEqual\@:
+.macro Bitfield64BranchLessThanOrEqual destination:req forceBranchCallerToReturn=FALSE
+  _Bitfield64BranchPrep
+Bitfield64BranchLessThanOrEqual\@:
   cmp %rcx, %rax
   ja skip\@ # reject above
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
 # Test STACK1 != STACK0
 # If true then branch. If false, do nothing.
-.macro ScalarBranchNotEqual destination:req forceBranchCallerToReturn=FALSE
-  _ScalarBranchPrep
-ScalarBranchNotEqual\@:
+.macro Bitfield64BranchNotEqual destination:req forceBranchCallerToReturn=FALSE
+  _Bitfield64BranchPrep
+Bitfield64BranchNotEqual\@:
   cmp %rcx, %rax
   je skip\@ # reject if equal
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
 # Test logical_not(STACK1 bitwise_& STACK0)
 # EG "do zero set bits match between these two bitfields?"
 # If zero then branch. If nonzero, do nothing.
-.macro ScalarBranchNand destination:req forceBranchCallerToReturn=FALSE
-  _ScalarBranchPrep
-ScalarBranchNand\@:
+.macro Bitfield64BranchNand destination:req forceBranchCallerToReturn=FALSE
+  _Bitfield64BranchPrep
+Bitfield64BranchNand\@:
   test %rcx, %rax
   jnz skip\@ # reject nonzero after and
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
@@ -1868,49 +1868,51 @@ PrintStackMessage\@:
 .endm
 
 // clobbers xmm0
+// Branch if high bit of every byte of STACK0 is all ones.
 // tested 2022-04-18
-.macro BranchSIMDTrue destination:req forceBranchCallerToReturn=FALSE
-BranchUnconditional\@:
+.macro VectorBranchTrue destination:req forceBranchCallerToReturn=FALSE
+VectorBranchTrue\@:
   movdqa DATA_STACK0, %xmm0
   DataStackRetreat
   pmovmskb %xmm0, %rax
   cmp $0xFFFF, %rax
   jnz skip\@
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
 // clobbers xmm0
+// Branch if high bit of every byte of STACK0 is all zeros.
 // tested 2022-04-20T22:59-07:00
-.macro BranchSIMDFalse destination:req forceBranchCallerToReturn=FALSE
-BranchUnconditional\@:
+.macro VectorBranchFalse destination:req forceBranchCallerToReturn=FALSE
+VectorBranchFalse\@:
   movdqa DATA_STACK0, %xmm0
   DataStackRetreat
   ptest %xmm0, %xmm0
   jnz skip\@
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
 // clobbers xmm0
 // Untested
-.macro BranchSIMDAnd destination:req forceBranchCallerToReturn=FALSE
-BranchUnconditional\@:
+.macro VectorBranchAnd destination:req forceBranchCallerToReturn=FALSE
+VectorBranchAnd\@:
   DataStackRetreatTwice
   movdqa DATA_STACK_NEGATIVE2, %xmm0
   pand DATA_STACK_NEGATIVE1, %xmm0
   jz skip\@
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 
 // clobbers xmm0
 // Tested 2022-04-21T00:35-07:00
-.macro BranchSIMDMaskEqual destination:req forceBranchCallerToReturn=FALSE
-BranchUnconditional\@:
+.macro VectorBranchMaskEqual destination:req forceBranchCallerToReturn=FALSE
+VectorBranchMaskEqual\@:
   DataStackRetreatThrice
   movdqa DATA_STACK_NEGATIVE1, %xmm0
   pand DATA_STACK_NEGATIVE3, %xmm0
@@ -1918,7 +1920,7 @@ BranchUnconditional\@:
   ptest %xmm0, %xmm0
   jnz skip\@
   call \destination
-  _ScalarBranchDecideForceCallerToReturn \forceBranchCallerToReturn
+  _Bitfield64BranchDecideForceCallerToReturn \forceBranchCallerToReturn
 skip\@:
 .endm
 

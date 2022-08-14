@@ -48,12 +48,12 @@ Verbs:
     Bitfield64ConditionalMaskBlendOneArgument
     or Bitfield8ConditionalMaskBlendOneArgument
 * call -> BranchUnconditional
-* ScalarBranchLessThan
-* ScalarBranchGreaterThan
-* ScalarBranchEqual
-* ScalarBranchAnd
-* ScalarBranchGreaterThanOrEqual
-* ScalarBranchLessThanOrEqual
-* ScalarBranchNotEqual
-* ScalarBranchNand
+* Bitfield64BranchLessThan
+* Bitfield64BranchGreaterThan
+* Bitfield64BranchEqual
+* Bitfield64BranchAnd
+* Bitfield64BranchGreaterThanOrEqual
+* Bitfield64BranchLessThanOrEqual
+* Bitfield64BranchNotEqual
+* Bitfield64BranchNand
 * printStack

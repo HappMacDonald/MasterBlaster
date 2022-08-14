@@ -7,7 +7,7 @@ Ackermann:
 //PrintStackMessage "[A1"
   Duplicate
   Immediate 0
-  ScalarBranchNotEqual Ackermann2 forceBranchCallerToReturn=TRUE // M!=0?
+  Bitfield64BranchNotEqual Ackermann2 forceBranchCallerToReturn=TRUE // M!=0?
   DataStackRetreat // If M==0, then pop M
   Immediate 1
   UnsignedInteger63add // M+=1
@@ -21,7 +21,7 @@ Ackermann2:
   Exchange // `M N`
   Duplicate
   Immediate 0
-  ScalarBranchNotEqual Ackermann3 forceBranchCallerToReturn=TRUE // N!=0?
+  Bitfield64BranchNotEqual Ackermann3 forceBranchCallerToReturn=TRUE // N!=0?
   DataStackRetreat // If N==0, then pop N
   Immediate 1 // `M 1`
   Exchange // `1 M`
