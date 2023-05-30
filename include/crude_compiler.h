@@ -1,6 +1,6 @@
 // "
 // Current poor-man's makefile:
-// gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
+// gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
 
 // 2022-05-14T07:50-07:00 current status:
 // I'unno man, I should just make the IteratableRAM generator
@@ -75,13 +75,13 @@
 // from it's previous position, and once it finds an end to whitespace it
 // will shift the filemap byte offset forward by that many bytes, and perform
 // a token match attempt.
-// 
+//
 //
 // == Eventually, IterableFileMMAP (Random Access Iterable, with seek performance penalty)
 // This will be a lot like IterableFilemap except using the MMAP facility.
 // Details not yet decided as I'm not YET using it, but I know it may inevitably
 // get drafted into service.
-// 
+//
 // ------
 // Current plan is to define input source code as an IterableFilemap,
 // and token dictionary as an IterableRAM.
@@ -379,7 +379,7 @@
 // What I really want is a decent set of documentation for mmap syscall.
 // Biggest hurdle being that glibc's "mmap / munmap" wrapper functions
 // get all of the attention and trying to reach behind that is
-// functionally unheard of. 
+// functionally unheard of.
 // //
 // best idea I have right now is to look at the glibc docs as a "hint"
 // at what the (probably thinly wrapped) syscall behind it wants.
@@ -403,7 +403,7 @@
 // * copyElements
 // .. basically every command I just renamed to have an "Elements" suffix
 // while typing this out, will be especially challenging to implemenet
-// in a lane-independant fastion. "ClearDataStack" only gets off easy 
+// in a lane-independant fastion. "ClearDataStack" only gets off easy
 // because it can cheat on the assumption that all stacks are
 // the same length.
 // I think I might need to break down and yield lane independance for
@@ -781,7 +781,7 @@ EndAlienCallStackFrame\@:
   // First up, stowing all parent-owned registers.
   // "
   PushParentOwnedRegisters
-  
+
   mov $SYSCALL_SYS_MMAP\
     , %SYSCALL_REGISTER
 
@@ -1452,8 +1452,8 @@ Bitfield64castToBoolean\@:
   movdqa DATA_STACK0, %xmm1 // Bitfield64 to cast
   _SetAllBitsZero register=%xmm0 // fill bits on %xmm1
   pcmpgtq %xmm1, %xmm0 // Is subject greater than 0?
-  movdqa %xmm0, DATA_STACK1
-  DataStackRetreat
+  movdqa %xmm0, DATA_STACK0
+  // DataStackRetreat
 .endm
 
 // "
@@ -1492,6 +1492,17 @@ BooleanPushTrue\@:
 // Tested and passed 2022-04-03T09:57-07:00
 // "
 .macro BooleanPushFalse
+BooleanPushFalse\@:
+  _SetAllBitsZero register=%xmm0
+  _SIMDPush %xmm0
+.endm
+
+// "
+// EG: () Bitfield64PushZero (0)
+// NEW top of stack (always 0) => %xmm0
+// Tested and passed ???
+// "
+.macro Bitfield64PushZero
 BooleanPushFalse\@:
   _SetAllBitsZero register=%xmm0
   _SIMDPush %xmm0

@@ -124,5 +124,5 @@ da16 = destinationAddress + 16
 
 # Pushes byte counter for beginning of current vector onto the stack
 .macro LoopGetByteCount
-  _Bitfield64DataStackPushRAM IterableRAMForeignByteCounter  
+  _Bitfield64DataStackPushRAM IterableRAMForeignByteCounter
 .endm

@@ -24,7 +24,7 @@ add rsp,0x10
 // step can be skipped IIRC on sysexit so this is only
 // when returning to an alien caller.
 mov  esp, ebp
-pop  ebp  
+pop  ebp
 ret
 ```
 Using XMM regs to cache top of stack (note: this is all POST M1 now!)
@@ -190,7 +190,7 @@ destructively empty entire stack
 Ex: (1 2 3 4 3 1) clear -> ()
 x duplicate
 duplicates single item at top of stack
-Ex: (1 2 3 4 3 1) dup -> (1 2 3 4 3 1 1) 
+Ex: (1 2 3 4 3 1) dup -> (1 2 3 4 3 1 1)
 x exchange
 swaps top two values in stack
 Ex: (1 2 3 4 3 1) exch -> (1 2 3 4 1 3)
@@ -275,7 +275,7 @@ Ex: (1 2 3 4 3 -9) roll -> (1 3 4 2)
 Ex: (1 2 3 4 30 1) roll -> You'll be eaten by a Gru.
 ? reverseElements
 Removes argument "n:UnsignedInteger63:scalarBroadcast". Reverses the positions of the following "n" items in the stack.
-Ex: (1 2 3 4 2) rev -> (1 2 4 3) 
+Ex: (1 2 3 4 2) rev -> (1 2 4 3)
 ? deleleElements
 Removes argument "n:UnsignedInteger63:scalarBroadcast". Destroys remaining top "n" values in the stack.
 Ex: (1 2 3 4 2) del -> (1 2)
@@ -291,7 +291,7 @@ Ex: (1 2 0xDEADBEEF 8) BitSplitDown (1 2 0xDEADBE 0xEF)
 
 
 
-== 2022-03-28 Plans: begin building RPN toy language 
+== 2022-03-28 Plans: begin building RPN toy language
 * Step one: only uses XMM registers by default.
 * Starts out only supporting SSE4.2 commands, AND only ever using the lowest lane of data. Upper lanes just don't exist to this problem space yet.
 * Starts out only supporting 64-bit unsigned integers, and 64-bit double precision floating point numbers as primitive data types.
@@ -686,10 +686,13 @@ It would be nice if I could arrange for errors found within macro expansions to 
 == gdb options:
 * `set disable-randomization off` is your friend. Esp if things segfault in the wild but behave sweet and innocent in gdb.
 * `layout split` is the ideal way to see decompiled source, stepi can step through the components of a macro here
+** `^X O` moves your focus between the ncurses windows
 ** CTRL-L cleans up the screen when STDOUT/STDERR get noisy and mess up all the ncurses formatting.
 ** Seriously tho.. would it kill gdb team to just pipe tty through a subwindow in the ncurses layout? ;P
 * x/1bx <thing> (x)prints the (1)one (b)yte at that place in he(x).
+** x/16gx $rbx for example should dump the current crude data stack.
 * p (char[<length>])<place> coughs up a string of predefined length.
+** example: p (char[22]) *$rax prints 22 char long string at memory location in $rax
 * gdb cheatsheet here https://users.ece.utexas.edu/~adnan/gdb-refcard.pdf
 ** which I've also archived to unison/dev/gdb-refcard.pdf
 
@@ -780,7 +783,7 @@ In descending order of implementational priority:
 * Strongly functional: abusively wring all business logic out of the parts of the code that handle side effects (Procedures), and then force said logic into pure functions (Lambdas).
 * Even less punctuation than Elm
 * YAGNI: Language is both strict and minimal in order to encourage making impossible or undesirable states unrepresentable.
-* Compiler gives gratuitously friendly error messages 
+* Compiler gives gratuitously friendly error messages
 * Maybe one day can cross-compile to other platforms? What do I care. xD
 
 == My original Mission Statement post:
@@ -905,7 +908,7 @@ Now I wish to bend development towards MasterBlaster syntax.
 * 100000000 = 32->32
 * 1000000000 = 40->64
 * 4294967295 = 40->64
-* 4294967296 = 
+* 4294967296 =
 
 -------------
 == I'm actually beginning to doubt some of the strategies listed below. Because:

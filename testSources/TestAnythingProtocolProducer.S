@@ -1,11 +1,62 @@
-#include "../libmb_s.h"
+#include "../include/libmb_s.h"
+
+// 2023-05-30T12:07-07:00 Current Status:
+// Woohoo, found/resolved problem printing things in general. :)
+// Lowdown: ok1MemCopy is meant to update its dest address to the end of what it last copied.
+// It was updating the register it uses to that effect internally
+// , but *not* updating the register caller used to give it that data.
+// Now it is.
+//
+// Current output is the following (with segfault at the end)
+// ok Test true should be OK
+// not ok Test false should be not OK # todo
+//   ---
+//   message: "Err.. false succeeded I guess?"
+//   ...
+// not ok Tests should consume stack input # todo
+//   ---
+//   message: "Huh.. stack isn't empty.."
+//   ...
+// Segmentation fault
+
+// 2023-05-29T18:11-07:00 Current Status:
+// lol! OK, in case I ever run into the below again...
+// ...
+// ... I was somehow compiling and gnu debugging the entire project in WINDOWS
+// and it didn't crash or mess up any earlier than that specific dealeo.
+// like.. WAT? Windows how are you running an elf64 I can't even xD
+//
+// I'm back properly doing this on Linux and get the same erroneous behavior
+// now that I got two steps ago, back in 2022-08-17T03:31-07:00.
+
+
+// 2023-05-28T04:45-07:00 Current Status:
+// It looks like at the end of EndAlienCallStackFrame
+// (very first line of macro-invoking code), $rbx (data stack pointer)
+// is set to some garbage value?
+// (gdb) p/x $rbx
+// $2 = 0xffffffffc1000005
+
+
+// 2022-08-17T03:31-07:00 Current Status:
+// OK, as far as I can tell the first output attempt is trying to print
+// 0x1a (26?) characters at mem location happyNoises(%rip) = 0x555555557034
+// (gdb) x/16gx 0x555555557034
+// 0x555555557034: 0x2e20200a22206b6f      0x00000000000a2e2e
+// Decoding the above hex data, I get the same ascii output as I see on terminal,
+// with spaces replaced by underscores and newlines by "\n" for readability here:
+// ok_"\n
+// __...\n
+// I doubt this is what is really trying to be printed,
+// I think perhaps the copy routines to fill in the output buffer
+// are malfuntioning.
 
 // 2022-05-30T11:16-07:00 Current Status:
 // Yeah I don't have to rush to vectorization, though it might
 // be nice to build down the road. For now it's basically
 // "Test if this entire vector on the stack is what it's
 // supposed to be or not".
-// 
+//
 // One thing I *do* need to figure out eventually is fuzzers, though.
 //
 // 2022-05-30T07:45-07:00 Current Status:
@@ -17,7 +68,7 @@
 // so I'm torn about *when* to make that change since I'd be opening
 // up a can of upgrading a test. :P
 // All of them might be in the Tokenizer Vocabulary as well, I'unno.
-// 
+//
 // 2. I need to work out a possible vectorization of my TAP macros, natch! ;P
 
 TAP_BUFFER_LENGTH=4096
@@ -57,24 +108,27 @@ outputBufferTestName:
 // * said zeros or garbage WILL be copied along with the
 //   valid data, despite the high likelihood of extending beyond the
 //   bytelength specified.
-// * 
 .macro ok1MemCopy sourceAddress:req \
   destinationAddress:req \
   byteLength:req \
   SIMDRegister=%xmm0 \
-  scalarRegisterLength=%ecx \
-  scalarRegisterSource=%eax \
-  scalarRegisterDestination=%edx
+  scalarRegisterLength=%rcx \
+  scalarRegisterSource=%rax \
+  scalarRegisterDestination=%rdi
 ok1MemCopy\@:
   mov $\byteLength, \scalarRegisterLength
-  mov $\sourceAddress, \scalarRegisterSource
-  mov $\destinationAddress, \scalarRegisterDestination
+  leaq \sourceAddress, \scalarRegisterSource
+  mov \destinationAddress, \scalarRegisterDestination
 ok1MemCopyLoop\@:
-  movdqa [\scalarRegisterSource], \sIMDRegister
-  movdqu \SIMDRegister, [\scalarRegisterDestination]
+  movdqu (\scalarRegisterSource), \SIMDRegister
+  movdqu \SIMDRegister, (\scalarRegisterDestination)
+  add $SIMD_WIDTH, \scalarRegisterSource
+  add $SIMD_WIDTH, \scalarRegisterDestination
   sub $SIMD_WIDTH, \scalarRegisterLength
   ja ok1MemCopyLoop\@
-  add $byteLength, \scalarRegisterDestination
+  mov \destinationAddress, \scalarRegisterDestination
+  add $\byteLength, \scalarRegisterDestination
+  mov \scalarRegisterDestination, \destinationAddress
 .endm
 
 // Step 1: describe (testcase pseudocode?) what behavior we want from
@@ -85,7 +139,7 @@ ok1MemCopyLoop\@:
 // based upon whether Test argument is VectorTrue.
 //
 // General: TestPoint := ("not ")? "ok " Description "\n" (YAMLBlock)?
-// Below is responsibility of caller:
+// Description format is responsibility of caller:
 // Description (testName) := (Number " ")? "- " words
 // Happy: "ok " testName "\n"
 // Not happy:
@@ -100,36 +154,38 @@ ok1MemCopyLoop\@:
 //   )?
 //   "  ...\n"
 
-#define ok1StringBuilder %edx
-#define ok1AndCrucible %eax
-// #define ok1OutputLength %edx
-#define ok1OutputStart %ecx
 
 
-.macro ok1 testName:req testFailMessage:req
-  Bitfield64castToBoolean // Make sure top of stack is a pure boolean
-  mov outputBufferTestName(%rip), ok1StringBuilder
-  ok1MemCopy testName\@(%rip), ok1StringBuilder, $testName\@Length
-  ok1MemCopy constantYAMLPreamble(%rip), ok1StringBuilder, $constantYAMLPreambleLength
-  ok1MemCopy testFailMessage\@(%rip), ok1StringBuilder, $testFailMessage\@Length
-  ok1MemCopy constantYAMLPost(%rip), ok1StringBuilder, $constantYAMLPostLength
+.macro ok1 testName:req testFailMessage:req \
+  ok1StringBuilder=%rdx \
+  ok1AndCrucible=%eax \
+  temporary=%r9
+ok1\@:
+  Bitfield64castToBoolean
+  leaq outputBufferTestName(%rip), \ok1StringBuilder
+  ok1MemCopy testName\@(%rip), \ok1StringBuilder, testName\@Length
+  ok1MemCopy constantYAMLPreamble(%rip), \ok1StringBuilder, constantYAMLPreambleLength
+  ok1MemCopy testFailMessage\@(%rip), \ok1StringBuilder, testFailMessage\@Length
+  ok1MemCopy constantYAMLPost(%rip), \ok1StringBuilder, constantYAMLPostLength
   // .. not really necessary, but just in case I feel
   // like endcapping the output buffer at some point.
-  // movb $0, ok1StringBuilder
+  // movb $0, \ok1StringBuilder
 
   // because of Bitfield64castToBoolean, must be a valid and mask
-  mov DATA_STACK0, %eax
-  ptest %eax, %eax
-  jz okFail
+  mov DATA_STACK0, \ok1AndCrucible
+  test \ok1AndCrucible, \ok1AndCrucible
+  jz okFail\@
 
-okSucceed:
-  putMemoryMacro happyNoises(%rip), happyNoises\@Length
-  jmp ok1End
+okSucceed\@:
+  putMemoryMacro happyNoises(%rip), $happyNoises\@Length
+  jmp ok1End\@
 
-okFail:
-  putMemoryMacro sadNoises(%rip), ok1StringBuilder
-  jmp ok1End
-  
+okFail\@:
+  leaq sadNoises(%rip), \temporary
+  sub \temporary, \ok1StringBuilder
+  putMemoryMacro sadNoises(%rip), length=\ok1StringBuilder
+  jmp ok1End\@
+
 testName\@:
   .ascii "\testName"
   testName\@Length = . - testName\@
@@ -150,7 +206,10 @@ _start:
   EndAlienCallStackFrame
   BooleanPushFalse
   BooleanPushTrue
-  ok1 "Test true should be OK" "Test true.. isn't OK?"
-  ok1 "Test false should be not OK # todo" "Err.. false succeeded I guess?"
+  ok1 "Test true should be OK", "Test true.. isn't OK?"
+  ok1 "Test false should be not OK # todo", "Err.. false succeeded I guess?"
   Bitfield64Count
-  ok1 "Tests should consume stack input # todo" "Huh.. stack isn't empty.."
+  BooleanNot
+  ok1 "Tests should consume stack input # todo", "Huh.. stack isn't empty.."
+  Bitfield64PushZero
+  systemExit
