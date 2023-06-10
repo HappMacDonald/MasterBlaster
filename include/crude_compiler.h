@@ -1,6 +1,42 @@
 // "
 // Current poor-man's makefile:
 // gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
+// Though ultimately I'm using `compile_w_debug.sh` and `compile_optimized.sh` until I can get proper makefile support online.
+
+// 2023-06-04T10:07-07:00 simple idea note:
+// give weight to syntax sugar for "swizzling" which is
+// a method of (short?) vector shuffling popular among shader coders.
+//
+// Also: first draft/placeholder termonology for the counterintuitive
+// synthesis of design goals I want to champion sportsmanlike participation in.
+// ChatGPT suggested "Semantic Gap" to describe the situation where
+// high and low level coding take on disparate short-term abstraction goals.
+// ChatGPT rebuffed but failed to offer better options than my ideas of
+// "Eloi" and "Morlock" to name the specific perspectives.
+//
+// * Eloi: The high level coder creating code policed by the compiler with
+// strong data types, simplified environmental abstractions that
+// *intentionally* render hardware realities as opaque, and restrictive
+// flow control such as [immutable variables/lambda purity/no gotos].
+// Events that happen under Eloi control are often described as "runtime".
+//
+// * Morlock: The low level compiler decisions which may *enforce* restrictive
+// discipline out of the Eloi, but which are also uniquely licensed to ignore
+// those restrictions wholesale when generating and especially optimizing
+// bytecode and/or assembly code based upon the clean Eloi source.
+//
+// One optimization decision I wanted to throw upon the Semantic Gap alter
+// is the possibility that while Eloi are both forced to assume that every
+// element in the data stack is a full SIMD-width vector (as well as LITERALLY)
+// never being ALLOWED to learn what that SIMD-width actually is)
+// and that scalars on the stack are actually repeated in every lane,
+// I may in fact allow Morlock compiler optimization to break that principle in
+// practice by specifically mandating either 64-bit scalar chunks be thrown
+// onto the stack — misaligning it and then *maybe* every now and then pad-aligning
+// it — or even 32/16/8 bit chunks as well given the expectation that the
+// Morlock compiler optimizations will be able to always keep track of
+// exact sizes and offsets for this stack and encode those directly into the
+// program flow.
 
 // 2022-05-14T07:50-07:00 current status:
 // I'unno man, I should just make the IteratableRAM generator
@@ -106,7 +142,7 @@
 // what output you'll get from the preceeding data element.
 // But I have potentially found a new — SIMD-performant way to look at
 // the problem which might reduce that big O from N to
-// something closer to log(n)/log(2) assuming one has enough
+// something closer to log₂(n) assuming one has enough
 // SIMD lanes. One never does, but the algorithm I'm proposing
 // would still allow big speedups for every 2^K data lanes
 // one does have available to them.
@@ -160,7 +196,7 @@
 // that there is no "next" (++index>=length).
 // metafunction should also mask final vector of elements
 // to match byte length automatically.
-// Metafunction:last bails by going through the mundane libc
+// Metafunction:last bails by going through the mundane libc-inspired
 // process of unrolling the stack frame via rsp/rbp and then
 // performing one final ret.
 

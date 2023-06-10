@@ -80,9 +80,13 @@ unsignedIntegerToStringBase16:
 # the end of the procedure.
 
 # arg1(%rdi) number to convert to decimal string
-# arg2(%rsi) 20 byte buffer space .. becomes right side of answer, then length of answer.
+# arg2(%rsi) 20 byte buffer space .. becomes right side of answer
+#   , then temp value length of answer.
 # arg3(%rdx) gets abused as division scratchpad
-# arg4(%rcx) left side of answer, copies to ret1(%rax) at the end.
+# arg4(%rcx) temp left side of answer, copies to ret1(%rax) at the end.
+# ret1(%rax) left side of answer, most likely not equal to beginning of buffer
+#   as answer is right-aligned in buffer.
+# ret2(%rdx) length of answer (%rax+%rdx = right/high end of buffer)
 # extern struct MasterBlasterString unsignedIntegerToStringBase10
 # ( /*rdi*/ uint64_t valueToConvert
 # , /*rsi*/ char resultBuffer[20] // Largest possible results are 20 digits
@@ -132,11 +136,16 @@ PrintStackLoop:
 # Print Lane 1 of current stack top
   mov (%rcx), %rdi
   push %rcx
+  mov $0x30, %eax // ascii zero character
+  movd %eax, %xmm0
+  _SetAllBitsZero %xmm7 // lane 0 new source for every lane
+  pshufb %xmm7, %xmm0 // "broadcast xmm0's lowest 8 bits to all lanes."
   leaq MEMORY_SCRATCHPAD(%rip), %rsi
+  movdqa %xmm0, (%rsi) // Put 16x ascii zero character into MEMORY_SCRATCHPAD
   call unsignedIntegerToStringBase16
   //%rax has new pointer to string
   //%rdx has length of new string
-  putMemoryMacro messageLocation=(%rax),length=%rdx
+  putMemoryMacro messageLocation=MEMORY_SCRATCHPAD(%rip),length=$16
 
 //Print a colon
   mov $STDOUT, %rdi
@@ -149,12 +158,16 @@ PrintStackLoop:
   pop %rcx
   mov 8(%rcx), %rdi // DATA_STACK0 lane 2
   push %rcx
-  // mov 24(%DATA_STACK_POINTER), %rdi // DATA_STACK0 lane 2
+  mov $0x30, %eax // ascii zero character
+  movd %eax, %xmm0
+  _SetAllBitsZero %xmm7 // lane 0 new source for every lane
+  pshufb %xmm7, %xmm0 // "broadcast xmm0's lowest 8 bits to all lanes."
   leaq MEMORY_SCRATCHPAD(%rip), %rsi
+  movdqa %xmm0, (%rsi) // Put 16x ascii zero character into MEMORY_SCRATCHPAD
   call unsignedIntegerToStringBase16
   //%rax has new pointer to string
   //%rdx has length of new string
-  putMemoryMacro messageLocation=(%rax),length=%rdx
+  putMemoryMacro messageLocation=MEMORY_SCRATCHPAD(%rip),length=$16
 
   pop %rcx
   add $SIMD_WIDTH, %rcx
@@ -297,9 +310,12 @@ IterableRAMShortMask:
 TrigentasenaryUppercaseDigits:
   .string "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+
+.balign 64
 .global MEMORY_SCRATCHPAD
 MEMORY_SCRATCHPAD:
 .skip 512
+
 
 COLON:
   .string ":"

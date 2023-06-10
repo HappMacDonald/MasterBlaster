@@ -1,8 +1,8 @@
 .*.swp
 *.o
+*.a
 *.elf
 *.elf64
 *.out
 *.exe
-*.elf
 .vscode

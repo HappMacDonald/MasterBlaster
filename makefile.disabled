@@ -34,10 +34,10 @@ LDLIBS		:=
 
 all:
 
-test: $(BIN)/TestAnythingProtocolProducer.elf64
+test: $(BIN)/2022-04-20T2302-0700_test.elf64
 
-$(BIN)/TestAnythingProtocolProducer.elf64: $(TEST_SRC)/TestAnythingProtocolProducer.S $(SRC)/libmb_s.S $(INCLUDE)/libmb_s.h $(INCLUDE)/crude_compiler.h
-	$(CC) $(AFLAGS) $(TEST_SRC)/TestAnythingProtocolProducer.S $(SRC)/libmb_s.S -o $(BIN)/TestAnythingProtocolProducer.elf64
+$(BIN)/2022-04-20T2302-0700_test.elf64: $(TEST_SRC)/2022-04-20T2302-0700_test.S $(SRC)/libmb_s.S $(INCLUDE)/libmb_s.h $(INCLUDE)/crude_compiler.h
+	$(CC) $(AFLAGS) $(TEST_SRC)/2022-04-20T2302-0700_test.S $(SRC)/libmb_s.S -o $(BIN)/2022-04-20T2302-0700_test.elf64
 
 clean:
 	@echo $(TEST_OBJS)
