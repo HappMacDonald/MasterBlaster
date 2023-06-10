@@ -95,6 +95,113 @@ testPointName:
 decimalIntegerBuffer:
 .skip 20
 
+// This is a rapid test that the top \count vectors in the stack
+// all perfectly match the data at the literal address
+// which caller is required to guarantee is exactly
+// SIMD_WIDTH * \count bytes long.
+// Success or failure is broadcast as a vector-wide boolean
+// pushed to the top of the stack, intended for later consumption
+// by the `ok1` macro.
+// This macro will also yield test failure if the stack is shallower
+// than \count entries deep.
+// \literalAddress does NOT have to be aligned (win for PCMPEQD)
+// , but Data Stack is obviously aligned by definition.
+//
+// `stackPartialTest` macro accepts as arguments:
+// * macro "literalAddress"
+// * macro "count" integer literal
+// Side effect: none
+// Data Stack: `stackPartialTest` pushes boolean scalar test result
+// General Registers:
+// * clobbers macro argument `stackIndex` defaults to %rax
+// * clobbers macro argument `literalPointer` defaults to %rcx
+// SIMD Registers:
+// * clobbers macro argument `SIMDRegister` defaults to %xmm0
+.macro stackPartialTest literalAddress:req count:req \
+  SIMDRegister=%xmm0 \
+  stackIndex=%rax \
+  literalPointer=%rcx
+stackPartialTest\@:
+  mov BOTTOM_OF_CALL_STACK, \stackIndex
+  sub %DATA_STACK_POINTER, \stackIndex // \stackIndex is now byte length of stack
+  sar $SIMD_META_WIDTH, \stackIndex // \stackIndex is now vector length of stack
+  cmp $\count, \stackIndex
+  jb stackPartialTestCountTooLarge\@
+
+  mov $\count, \stackIndex
+  decq \stackIndex
+  sal $SIMD_META_WIDTH, \stackIndex // \stackIndex is now $SIMD_WIDTH * (\count-1)
+  lea \literalAddress, \literalPointer
+  add \stackIndex, \literalPointer // Move \literalPointer to last item in literal
+  add %DATA_STACK_POINTER, \stackIndex // Move \stackIndex to matching item in stack
+
+stackPartialTestLoop\@:
+  cmp %DATA_STACK_POINTER, \stackIndex
+  jb stackPartialTestSuccess\@ // passed top of stack without failure yet 🎉
+
+  movdqa (\stackIndex), \SIMDRegister
+  // if unequal, set at least some bits to one.
+  pxor (\literalPointer), \SIMDRegister
+
+  // if any bits set, fail.
+  ptest \SIMDRegister, \SIMDRegister
+  jnz stackPartialTestFail\@
+
+  // increment to next later memory vector
+  // and to next deeper stack location
+  sub $SIMD_WIDTH, \stackIndex
+  sub $SIMD_WIDTH, \literalPointer
+  jmp stackPartialTestLoop\@
+
+stackPartialTestSuccess\@:
+  BooleanPushTrue
+  jmp stackPartialTestEnd\@
+
+stackPartialTestCountTooLarge\@:
+stackPartialTestFail\@:
+  BooleanPushFalse
+
+stackPartialTestEnd\@:
+.endm
+
+// Same as `stackPartialTest` except that
+// test will ALSO fail if stack is *more* than \count entries deep.
+//
+// `stackFullTest` macro accepts as arguments:
+// * macro "literalAddress"
+// * macro "count" integer literal
+// Side effect: none
+// Data Stack: `stackFullTest` pushes boolean scalar test result
+// General Registers:
+// * clobbers macro argument `stackIndex` defaults to %rax
+// * clobbers macro argument `literalPointer` defaults to %rcx
+// SIMD Registers:
+// * clobbers macro argument `SIMDRegister` defaults to %xmm0
+.macro stackFullTest literalAddress:req count:req \
+  SIMDRegister=%xmm0 \
+  stackIndex=%rax \
+  literalPointer=%rcx
+stackFullTest\@:
+  mov BOTTOM_OF_CALL_STACK, \stackIndex
+  sub %DATA_STACK_POINTER, \stackIndex // \stackIndex is now byteLength of stack
+  sar $SIMD_META_WIDTH, \stackIndex // \stackIndex is now vector length of stack
+  cmp $\count, \stackIndex
+  jne stackFullTestCountNoMatch\@
+
+  stackPartialTest literalAddress=\literalAddress, count=\count \
+    , SIMDRegister=\SIMDRegister \
+    , stackIndex=\stackIndex \
+    , literalPointer=\literalPointer
+
+  jmp stackFullTestEnd\@
+
+stackFullTestCountNoMatch\@:
+  BooleanPushFalse
+
+stackFullTestEnd\@:
+.endm
+
+
 // This is a quick and dirty memcopy that makes the following
 // assumptions on behalf of the caller:
 // * source address must be aligned to SIMD_WIDTH
@@ -105,7 +212,22 @@ decimalIntegerBuffer:
 //   valid data, despite the high likelihood of extending beyond the
 //   bytelength specified.
 // * Bytelength must be a literal constant integer
-.macro ok1MemCopy sourceAddress:req \
+//
+// `ok1MemCopy` macro accepts as arguments:
+// * macro "sourceAddress"
+// * macro "destinationAddress"
+// * macro "byteLength" integer
+// Side effect: `ok1MemCopy` macro copies ceil(byteLength/SIMD_WIDTH)
+//   bytes from \sourceAddress to \destinationAddress
+// Data Stack: `ok1MemCopy` macro does not intentionally alter the Data Stack
+// General Registers:
+// * clobbers macro argument `scalarRegisterLength` defaults to %rcx
+// * clobbers macro argument `scalarRegisterSource` defaults to %rax
+// * clobbers macro argument `scalarRegisterDestination` defaults to %rdi
+// SIMD Registers:
+// * clobbers macro argument `SIMDRegister` defaults to %xmm0
+.macro ok1MemCopy \
+  sourceAddress:req \
   destinationAddress:req \
   byteLength:req \
   SIMDRegister=%xmm0 \

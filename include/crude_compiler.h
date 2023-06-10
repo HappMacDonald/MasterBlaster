@@ -1539,9 +1539,7 @@ BooleanPushFalse\@:
 // Tested and passed ???
 // "
 .macro Bitfield64PushZero
-BooleanPushFalse\@:
-  _SetAllBitsZero register=%xmm0
-  _SIMDPush %xmm0
+  BooleanPushFalse
 .endm
 
 // "

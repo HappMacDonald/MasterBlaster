@@ -6,32 +6,59 @@
 _start:
   EndAlienCallStackFrame
 
+  plan1 10 "bitfield8 tests"
+
   // only lowest 8 bits will survive,
   // but hardware limitations require me
   // to pass this value around as 32-bit or greater.
   mov $0xac, %eax
   _Bitfield8DataStackPushGeneral %eax
-  PrintStackMessage "_Bitfield8DataStackPushGeneral value %ax"
+  // PrintStackMessage "_Bitfield8DataStackPushGeneral value %ax"
+.memoryBlock Expected_Bitfield8DataStackPushGeneral
+ACACACACACACACAC ACACACACACACACAC
+.endMemoryBlock
+  stackFullTest Expected_Bitfield8DataStackPushGeneral(%rip), count=1
+  ok1 "_Bitfield8DataStackPushGeneral", "oof"
 
   ClearDataStack
-  PrintStackMessage "ClearDataStack"
 
   Bitfield8Immediate 0x10
-  PrintStackMessage "Bitfield8Immediate $0x10"
+.memoryBlock ExpectedBitfield8Immediate
+1010101010101010 1010101010101010
+.endMemoryBlock
+  stackFullTest ExpectedBitfield8Immediate(%rip), count=1
+  ok1 "Bitfield8Immediate", "oof"
 
   ClearDataStack
   Bitfield8ImmediateVector128 \
   0x01, 0x03, 0x05, 0x0c, 0x18, 0x30, 0x50, 0xc0 \
   0xe0, 0x70, 0x38, 0x1c, 0x0e, 0x07, 0x03, 0x01
 
-  PrintStackMessage "Bitfield8ImmediateVector128 zomgoodness"
+.memoryBlock Bitfield8ImmediateVector128
+0103050C183050C0 E070381C0E070301
+.endMemoryBlock
+  stackFullTest Bitfield8ImmediateVector128(%rip), count=1
+  ok1 "Bitfield8ImmediateVector128", "oof"
+  // PrintStackMessage "Bitfield8ImmediateVector128"
+
 
   Bitfield8negate
-  PrintStackMessage "Bitfield8negate zomgoodness"
+.memoryBlock Bitfield8negate
+FFFDFBF4E8D0B040 2090C8E4F2F9FDFF
+.endMemoryBlock
+  stackFullTest Bitfield8negate(%rip), count=1
+  ok1 "Bitfield8negate", "oof"
+  // PrintStackMessage "Bitfield8negate"
 
   Bitfield8Immediate 0xFF
   Bitfield8add
-  PrintStackMessage "Bitfield8add zomgoodness + -1"
+.memoryBlock Bitfield8add
+FEFCFAF3E7CFAF3F 1F8FC7E3F1F8FCFE
+.endMemoryBlock
+  stackFullTest Bitfield8add(%rip), count=1
+  ok1 "Bitfield8add", "oof"
+  // PrintStackMessage "Bitfield8add"
+
 
   ClearDataStack
 
@@ -47,10 +74,25 @@ _start:
   Bitfield64Index
   Bitfield64Immediate 2
   Bitfield64Index
-  PrintStackMessage "Upcoming comparison between zomgoodness and hurblgurble"
+.memoryBlock UpcomingComparison
+0003040c18304fc0 e06f381b0e060300
+0103050c183050c0 e070381c0e070301
+0003040c18304fc0 e06f381b0e060300
+0103050c183050c0 e070381c0e070301
+.endMemoryBlock
+  stackFullTest UpcomingComparison(%rip), count=4
+  ok1 "Upcoming comparison between zomgoodness and hurblgurble", "oof"
+  // PrintStackMessage "UpcomingComparison"
 
   Bitfield8equal
-  PrintStackMessage "Bitfield8equal"
+.memoryBlock Bitfield8equal
+00FF00FFFFFF00FF FF00FF00FF00FF00
+0003040c18304fc0 e06f381b0e060300
+0103050c183050c0 e070381c0e070301
+.endMemoryBlock
+  stackPartialTest Bitfield8equal(%rip), count=1
+  ok1 "Bitfield8equal", "oof"
+  // PrintStackMessage "Bitfield8equal"
 
   DataStackRetreat
   Bitfield64Immediate 2
@@ -59,20 +101,38 @@ _start:
   Bitfield64Index
 
   SignedInteger8greaterThan
-  PrintStackMessage "SignedInteger8greaterThan"
+.memoryBlock SignedInteger8greaterThan
+FF00FF000000FF00 00FF00FF00FF00FF
+0003040c18304fc0 e06f381b0e060300
+0103050c183050c0 e070381c0e070301
+.endMemoryBlock
+  stackPartialTest SignedInteger8greaterThan(%rip), count=1
+  ok1 "SignedInteger8greaterThan", "oof"
+  // PrintStackMessage "SignedInteger8greaterThan"
 
   DataStackRetreatTwice
-  PrintStackMessage "About to cast zomg-1 to boolean."
+  // PrintStackMessage "About to cast zomg-1 to boolean."
 
   Duplicate
   Bitfield8castToBoolean
-  PrintStackMessage "Bitfield8castToBoolean"
+.memoryBlock Bitfield8castToBoolean
+00000000000000FF FF00000000000000
+.endMemoryBlock
+  stackPartialTest Bitfield8castToBoolean(%rip), count=1
+  ok1 "Bitfield8castToBoolean", "oof"
+  // PrintStackMessage "Bitfield8castToBoolean"
 
   Bitfield64Immediate 0
   Exchange
-  PrintStackMessage "About to Bitfield8MaskBlend"
+  // PrintStackMessage "About to Bitfield8MaskBlend"
 
   Bitfield8MaskBlend
-  PrintStackMessage "Bitfield8MaskBlend"
+.memoryBlock Bitfield8MaskBlend
+0103050c18305000 0070381c0e070301
+.endMemoryBlock
+  stackPartialTest Bitfield8MaskBlend(%rip), count=1
+  ok1 "Bitfield8MaskBlend", "oof"
+
+  // PrintStackMessage "Bitfield8MaskBlend"
 
   systemExit
