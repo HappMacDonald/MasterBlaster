@@ -1,4 +1,4 @@
-#include "TestAnythingProtocolProducer.h"
+#include "TestAnythingProtocolProducer_s.h"
 .text
 .globl _start
 _start:
@@ -41,7 +41,7 @@ _start:
 BA834E3B8CEA51BB A612E046A166463F
 .endMemoryBlock
   stackFullTest BooleanNot(%rip), count=1
-  ok1 "BooleanNot", "oof"
+  ok1 "BooleanNot (no longer a macro.. it went through a name split. Please fix this dawg!)", "oof"
 
 
   ClearDataStack

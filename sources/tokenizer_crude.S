@@ -35,7 +35,7 @@ scanTokenLoop:
   Duplicate
   Bitfield64Immediate 0 // 0 to compare a copy of token against and get a mask
   Bitfield8Equal
-  BooleanNot
+  Bitfield8BooleanNot
   // now we have: input length, token length
   // , inputIndex, tokenIndex
   // , raw chunk of input bytes to scan

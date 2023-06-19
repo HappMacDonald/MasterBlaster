@@ -13,7 +13,7 @@ _start:
   pop %rdx
   mov %rax, %rdi // Number to print
   leaq buffer(%rip), %rsi
-  call unsignedIntegerToStringBase10
+  call _unsignedIntegerToStringBase10
   //%rax has new pointer to string
   //%rdx has length of new string
   putMemoryMacro \

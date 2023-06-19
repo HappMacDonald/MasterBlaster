@@ -709,7 +709,7 @@ It would be nice if I could arrange for errors found within macro expansions to 
 
 == Point to add to the pile
 * I'mma need to work out a test suite for atom-sized asm code *shrugs*
-** I accidentally fuzz tested my way into realizing that my newb unsignedIntegerToStringBase16 function failed to render LSnibble runs of zeros
+** I accidentally fuzz tested my way into realizing that my newb _unsignedIntegerToStringBase16 function failed to render LSnibble runs of zeros
 ** I can't even REMEMBER how I arrived at the conclusion that it also wrote 1 byte shifted left of it's buffer. After all, it just worked from a black box testing perspective! ;P
 
 == CPUID features I intend to demand at minimum to run a MasterBlaster executable (at least to begin with):

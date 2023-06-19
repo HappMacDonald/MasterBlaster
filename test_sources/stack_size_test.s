@@ -32,7 +32,7 @@ StackTestLoop:
 //Write current count
   mov %rbx, %rdi // rbx counter into rdi arg1
   leaq MEMORY_SCRATCHPAD(%rip), %rsi // memory sandbox into rsi arg2
-  call unsignedIntegerToStringBase10
+  call _unsignedIntegerToStringBase10
   // %rax has new pointer to string
   // %rdx has length of new string
   putMemoryMacro messageLocation=(%rax),length=%rdx

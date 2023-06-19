@@ -623,6 +623,8 @@
 #define DATA_STACK7 112(%DATA_STACK_POINTER)
 #define DATA_STACK7_5 120(%DATA_STACK_POINTER)
 
+#define DATA_STACK0_QUOTED "(%rbx)"
+
 // " sensitive to SCALAR_NATIVE_WIDTH_IN_BYTES :P  I'm too lazy to look up how to do gas variable arithmetic right now.
 // "
 #define CALL_STACK_NEGATIVE5 -40(%CALL_STACK_POINTER)
@@ -854,7 +856,7 @@ SYSCALL_MMAP_ERROR_HANDLER\@:
   mov %r15, %ALIEN_INTEGER64_ARGUMENT1
 
   leaq MEMORY_SCRATCHPAD(%rip), %ALIEN_INTEGER64_ARGUMENT2
-  call unsignedIntegerToStringBase16
+  call _unsignedIntegerToStringBase16
   //%ALIEN_INTEGER64_RETURN1 has new pointer to string
   //%ALIEN_INTEGER64_RETURN2 has length of new string
   putMemoryMacro \
@@ -1479,17 +1481,20 @@ Bitfield64bitRotateUp\@:
 // EG: (0) castToBoolean -> (0) aka Boolean FALSE
 // EG: (0xFFFFF) -> (0) aka Boolean FALSE
 // EG: (0x8000000000000000) -> (0xFFFFFFFFFFFFFFFF) aka Boolean TRUE
-// NEW top of stack => %xmm0
-// OLD top of stack => %xmm1
+// NEW top of stack => %xmm1
+// All zeros => %xmm0
 // input 1 unit, output 1 unit
 // "
 .macro Bitfield64castToBoolean
 Bitfield64castToBoolean\@:
-  movdqa DATA_STACK0, %xmm1 // Bitfield64 to cast
+  // movdqa DATA_STACK0, %xmm1 // Bitfield64 to cast
   _SetAllBitsZero register=%xmm0 // fill bits on %xmm1
-  pcmpgtq %xmm1, %xmm0 // Is subject greater than 0?
+  _SetAllBitsZero register=%xmm1 // fill bits on %xmm1
+  pcmpeqq DATA_STACK0, %xmm0 // Is subject equal to 0?
+  // (nonzero becomes 0, 0 becomes 0xFFFFFFFFFFFFFFFF)
+  pcmpeqq %xmm1, %xmm0 // Is subject equal to 0 now?
+  // (original nonzero becomes 0xFFFFFFFFFFFFFFFF, original 0 turns back to 0)
   movdqa %xmm0, DATA_STACK0
-  // DataStackRetreat
 .endm
 
 // "
@@ -1505,9 +1510,13 @@ Bitfield64castToBoolean\@:
 // "
 .macro Bitfield8castToBoolean
 Bitfield8castToBoolean\@:
-  movdqa DATA_STACK0, %xmm1 // Bitfield8 to cast
+  // movdqa DATA_STACK0, %xmm1 // Bitfield8 to cast
   _SetAllBitsZero register=%xmm0 // fill bits on %xmm1
-  pcmpgtb %xmm1, %xmm0 // Is subject greater than 0?
+  _SetAllBitsZero register=%xmm1 // fill bits on %xmm1
+  pcmpeqb DATA_STACK0, %xmm0 // Is subject equal to 0?
+  // (nonzero becomes 0, 0 becomes 0xFF)
+  pcmpeqb %xmm1, %xmm0 // Is subject equal to 0 now?
+  // (original nonzero becomes 0xFF, original 0 turns back to 0)
   movdqa %xmm0, DATA_STACK0
 .endm
 
@@ -1543,18 +1552,34 @@ BooleanPushFalse\@:
 .endm
 
 // "
-// EG: (1 2 3 TRUE) BooleanNot (1 2 3 FALSE)
-// EG: (1 2 3 FALSE) BooleanNot (1 2 3 TRUE)
-// EG: (1 2 3 [something that would cast to TRUE]) BooleanNot (1 2 3 [something that would cast to FALSE]), and vice versa.
-// NEW top of stack (only pure valid boolean if input was) => %xmm0
-// If you wish to force purity, simply run this command
-// and then chase it with Bitfield(size)castToBoolean: job done.
-// Testcase confirmed passed 2023-06-10T16:21-07:00
+// EG: (1 2 3 TRUE) Bitfield64BooleanNot (1 2 3 FALSE)
+// EG: (1 2 3 FALSE) Bitfield64BooleanNot (1 2 3 TRUE)
+// EG: (1 2 3 [something that would cast to TRUE]) Bitfield64BooleanNot
+//      ==> (1 2 3 FALSE), and vice versa.
+// NEW top of stack (pure Bitfield64 Booleans) => %xmm0
+// Testcase tainted
 // "
-.macro BooleanNot
-BooleanNot\@:
-  _SetAllBitsOne register=%xmm0
-  pxor DATA_STACK0, %xmm0
+.macro Bitfield64BooleanNot
+Bitfield64BooleanNot\@:
+  _SetAllBitsZero register=%xmm0
+  pcmpeqq DATA_STACK0, %xmm0 // Is subject equal to 0?
+  // (nonzero becomes 0, 0 becomes 0xFFFFFFFFFFFFFFFF)
+  movdqa %xmm0, DATA_STACK0
+.endm
+
+// "
+// EG: (1 2 3 TRUE) Bitfield8BooleanNot (1 2 3 FALSE)
+// EG: (1 2 3 FALSE) Bitfield8BooleanNot (1 2 3 TRUE)
+// EG: (1 2 3 [something that would cast to TRUE]) Bitfield8BooleanNot
+//      ==> (1 2 3 FALSE), and vice versa.
+// NEW top of stack (pure Bitfield8 Booleans) => %xmm0
+// Testcase tainted
+// "
+.macro Bitfield8BooleanNot
+Bitfield8BooleanNot\@:
+  _SetAllBitsZero register=%xmm0
+  pcmpeqb DATA_STACK0, %xmm0 // Is subject equal to 0?
+  // (nonzero becomes 0, 0 becomes 0xFFFFFFFFFFFFFFFF)
   movdqa %xmm0, DATA_STACK0
 .endm
 

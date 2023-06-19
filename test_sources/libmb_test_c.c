@@ -37,7 +37,7 @@ int main()
   if
   ( CU_add_test
     ( pSuite
-    , "Buffer Tainting Test for unsignedIntegerToStringBase16"
+    , "Buffer Tainting Test for _unsignedIntegerToStringBase16"
     , runBufferTaintingTestForUnsignedIntegerToStringBase16
     )
   ==NULL
@@ -49,7 +49,7 @@ int main()
   if
   ( CU_add_test
     ( pSuite
-    , "Buffer Tainting Test for unsignedIntegerToStringBase10"
+    , "Buffer Tainting Test for _unsignedIntegerToStringBase10"
     , runBufferTaintingTestForUnsignedIntegerToStringBase10
     )
   ==NULL
@@ -79,7 +79,7 @@ void runBufferTaintingTestForUnsignedIntegerToStringBase16()
   sprintf(comparison, "%" PRIX64, testValue);
 
   runBufferTaintingTest
-  ( unsignedIntegerToStringBase16
+  ( _unsignedIntegerToStringBase16
   , 16
   , testValue
   , comparison
@@ -93,7 +93,7 @@ void runBufferTaintingTestForUnsignedIntegerToStringBase10()
   sprintf(comparison, "%" PRIu64, testValue);
 
   runBufferTaintingTest
-  ( unsignedIntegerToStringBase10
+  ( _unsignedIntegerToStringBase10
   , 20
   , testValue
   , comparison
@@ -231,10 +231,10 @@ bool MatchMasterBlasterBuffer1k
 //   putMemoryProcedure("Hello", 4, STDOUT);
 //   printf("(%c)\n", *TrigentasenaryUppercaseDigits+1);
 //   printf("(%.*s)\n", 10, (&TrigentasenaryUppercaseDigits));
-//   actualResults = unsignedIntegerToStringBase16(0xdeadbeef, resultBuffer);
+//   actualResults = _unsignedIntegerToStringBase16(0xdeadbeef, resultBuffer);
 //   printf("a=%016" PRIX64 ", b=%016" PRIX64 "\n", actualResults.a, actualResults.b);
 //   printf("(%.*s)\n", actualResults.b, actualResults.a);
-//   actualResults = unsignedIntegerToStringBase10(0xdeadbeef, resultBuffer);
+//   actualResults = _unsignedIntegerToStringBase10(0xdeadbeef, resultBuffer);
 //   printf("a=%016" PRIX64 ", b=%016" PRIX64 "\n", actualResults.a, actualResults.b);
 //   printf("(%.*s)\n", actualResults.b, actualResults.a);
 //   printf("After\n");

@@ -25,7 +25,8 @@
 .macro UnsignedInteger63castToBoolean
 .macro BooleanPushTrue
 .macro BooleanPushFalse
-.macro BooleanNot
+.macro Bitfield64BooleanNot
+.macro Bitfield8BooleanNot
 .macro BooleanAnd
 .macro BooleanOr
 .macro BooleanXor

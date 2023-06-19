@@ -23,7 +23,7 @@ Verbs:
 * duplicate -> Duplicate
 * exchange -> Exchange
 * index -> Bitfield64Index (for now)
-* negate -> Bitfield64negate or Bitfield8negate or BooleanNot
+* negate -> Bitfield64negate or Bitfield8negate or Bitfield8BooleanNot or Bitfield64BooleanNot
 * add -> Bitfield64add or Bitfield8add or BooleanOr
 * multiply -> UnsignedInteger63multiply or (error for 8 bit types for now)
     or BooleanAnd
@@ -39,7 +39,7 @@ Verbs:
     or error in boolean mode
 * TRUE -> BooleanPushTrue
 * FALSE -> BooleanPushFalse
-* not -> BooleanNot (one's compliment in all modes)
+* not -> BooleanNot (?!?!? This macro no longer exists, and went through a namesplit please fix)
 * and -> BooleanAnd (in all modes)
 * or -> BooleanOr (in all modes)
 * xor -> BooleanXor (in all modes)

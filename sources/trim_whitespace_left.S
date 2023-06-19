@@ -146,7 +146,7 @@ lambda:
   # SIMD_WIDTH of input characters is ascii 33-127 (due to "signed" comp)
   # , current SIMD_WIDTH input chars, array literal of ascii deletes (/u127).
   Bitfield8equal
-  BooleanNot
+  Bitfield8BooleanNot
   BooleanAnd
   BooleanAnd
   # Lambda Stack now has: Accumulator

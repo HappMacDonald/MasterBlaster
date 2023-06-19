@@ -126,7 +126,7 @@ CountLeftWhitespace:
   // PrintStackMessage "Old accumulator, valid bytes, actual input vector, spaces, actual input vector"
   Exchange
   SignedInteger8greaterThan
-  // BooleanNot
+  // Bitfield8BooleanNot
   // PrintStackMessage "Old accumulator, valid bytes, actual input vector, 33-127"
   # Data Stack now has, in push order:
   # * Accumulator
@@ -146,7 +146,7 @@ CountLeftWhitespace:
   // PrintStackMessage "Old accumulator, valid bytes, 33-127, actual input vector, 127?"
 
   Bitfield8equal
-  BooleanNot
+  Bitfield8BooleanNot
   BooleanAnd
   BooleanAnd
   # Data Stack now has, in push order:

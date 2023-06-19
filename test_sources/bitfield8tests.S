@@ -1,4 +1,4 @@
-#include "TestAnythingProtocolProducer.h"
+#include "TestAnythingProtocolProducer_s.h"
 
 .text
 
@@ -7,6 +7,11 @@ _start:
   EndAlienCallStackFrame
 
   plan1 10 "bitfield8 tests"
+
+  mov $1, %eax
+  ok1 "a", "b", ok1BooleanTestRegister=%eax, ok1BooleanSource=%eax
+  mov $0, %eax
+  ok1 "c", "d", ok1BooleanTestRegister=%eax, ok1BooleanSource=%eax
 
   // only lowest 8 bits will survive,
   // but hardware limitations require me

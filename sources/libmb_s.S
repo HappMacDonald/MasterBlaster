@@ -37,12 +37,12 @@ getMemoryProcedure:
 # Returns ret1(%rax)=pointer to inside of buffer where RIGHT-ALIGNED answer sits,
 # and ret2(%rdx)=total length of the answer string. That is not null-terminated.
 # Unused portion of buffer left of ret1(%rax) is considered clobbered.
-# extern struct MasterBlasterString unsignedIntegerToStringBase16
+# extern struct MasterBlasterString _unsignedIntegerToStringBase16
 # ( /*rdi*/ uint64_t valueToConvert
-# , /*rax*/ char resultBuffer[16] // Largest possible results are 16 digits
+# , /*rsi*/ char resultBuffer[16] // Largest possible results are 16 digits
 # );
-.global unsignedIntegerToStringBase16
-unsignedIntegerToStringBase16:
+.global _unsignedIntegerToStringBase16
+_unsignedIntegerToStringBase16:
 .bufferLength = 16
 .bufferLast = .bufferLength-1
   addq $.bufferLast, %rsi # advance arg2 to end of buffer
@@ -87,12 +87,12 @@ unsignedIntegerToStringBase16:
 # ret1(%rax) left side of answer, most likely not equal to beginning of buffer
 #   as answer is right-aligned in buffer.
 # ret2(%rdx) length of answer (%rax+%rdx = right/high end of buffer)
-# extern struct MasterBlasterString unsignedIntegerToStringBase10
+# extern struct MasterBlasterString _unsignedIntegerToStringBase10
 # ( /*rdi*/ uint64_t valueToConvert
 # , /*rsi*/ char resultBuffer[20] // Largest possible results are 20 digits
 # );
-.global unsignedIntegerToStringBase10
-unsignedIntegerToStringBase10:
+.global _unsignedIntegerToStringBase10
+_unsignedIntegerToStringBase10:
 .bufferLength = 20
 .bufferLast = .bufferLength-1
   addq $.bufferLast, %rsi # skip arg2 to end of buffer
@@ -142,7 +142,7 @@ PrintStackLoop:
   pshufb %xmm7, %xmm0 // "broadcast xmm0's lowest 8 bits to all lanes."
   leaq MEMORY_SCRATCHPAD(%rip), %rsi
   movdqa %xmm0, (%rsi) // Put 16x ascii zero character into MEMORY_SCRATCHPAD
-  call unsignedIntegerToStringBase16
+  call _unsignedIntegerToStringBase16
   //%rax has new pointer to string
   //%rdx has length of new string
   putMemoryMacro messageLocation=MEMORY_SCRATCHPAD(%rip),length=$16
@@ -164,7 +164,7 @@ PrintStackLoop:
   pshufb %xmm7, %xmm0 // "broadcast xmm0's lowest 8 bits to all lanes."
   leaq MEMORY_SCRATCHPAD(%rip), %rsi
   movdqa %xmm0, (%rsi) // Put 16x ascii zero character into MEMORY_SCRATCHPAD
-  call unsignedIntegerToStringBase16
+  call _unsignedIntegerToStringBase16
   //%rax has new pointer to string
   //%rdx has length of new string
   putMemoryMacro messageLocation=MEMORY_SCRATCHPAD(%rip),length=$16

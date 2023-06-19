@@ -14,7 +14,7 @@
 .globl _start
 _start:
   EndAlienCallStackFrame
-  
+
   Bitfield64ImmediateVector128 -1, 7
   Bitfield64ImmediateVector128 3, 3
   PrintStackMessage "Inputs to MinimumSignedInteger64:"
@@ -71,4 +71,3 @@ _start:
   PrintStackMessage "Output to MaximumUnsignedInteger8:"
 
   SystemExit
-

@@ -283,12 +283,12 @@ _crudeTestMemCopyLoop\@:
 // Data Stack: `ok1` macro consumes one input, creates no output.
 // General Registers: Clobbers %rcx %rax %rdi
 // * clobbers macro argument `ok1StringBuilder` defaults to %rdx
-// * clobbers macro argument `ok1AndCrucible` defaults to %eax
+// * clobbers macro argument `ok1BooleanTestRegister` defaults to %eax
 // * clobbers macro argument `temporary` defaults to %r9
 // SIMD Registers: clobbers %xmm0 %xmm1
 .macro ok1 testName:req testFailMessage:req \
   ok1StringBuilder=%rdx \
-  ok1AndCrucible=%eax \
+  ok1BooleanTestRegister=%eax \
   temporary=%r9
 ok1\@:
   Bitfield64castToBoolean
@@ -302,8 +302,8 @@ ok1\@:
   // movb $0, \ok1StringBuilder
 
   // because of Bitfield64castToBoolean, must be a valid and mask
-  mov DATA_STACK0, \ok1AndCrucible
-  test \ok1AndCrucible, \ok1AndCrucible
+  mov DATA_STACK0, \ok1BooleanTestRegister
+  test \ok1BooleanTestRegister, \ok1BooleanTestRegister
   jz okFail\@
 
 okSucceed\@:
@@ -348,7 +348,7 @@ plan1\@:
 // convert totalTestCount into a decimal string and print that
   mov $\totalTestCount, %ALIEN_INTEGER64_ARGUMENT1
   leaq decimalIntegerBuffer(%rip), %ALIEN_INTEGER64_ARGUMENT2
-  call unsignedIntegerToStringBase10
+  call _unsignedIntegerToStringBase10
   putMemoryMacro messageLocation=(%ALIEN_INTEGER64_RETURN1), length=%ALIEN_INTEGER64_RETURN2
 
 // print reason
@@ -367,7 +367,7 @@ plan1\@:
 //   ok1 "Test true should be OK", "Test true.. isn't OK?"
 //   ok1 "Test false should be not OK # todo", "Err.. false succeeded I guess?"
 //   Bitfield64Count
-//   BooleanNot
+//   Bitfield64BooleanNot
 //   ok1 "Tests should consume stack input # todo", "Huh.. stack isn't empty.."
 //   Bitfield64PushZero
 //   systemExit
