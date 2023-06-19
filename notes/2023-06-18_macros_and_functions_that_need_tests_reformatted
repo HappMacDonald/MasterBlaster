@@ -1,0 +1,107 @@
+./sources/libmb_s.S                         : .global unsignedIntegerToStringBase16
+./sources/libmb_s.S                         : .global unsignedIntegerToStringBase10
+./include/crude_compiler.h                  : .macro _DataStackAdvance
+./include/crude_compiler.h                  : .macro _DataStackPopGeneral register=%rax
+./include/crude_compiler.h                  : .macro _Bitfield64DataStackPushGeneral register=%rax
+./include/crude_compiler.h                  : .macro _Bitfield64DataStackPushRAM address:req, clobberGeneral=%rax
+./include/crude_compiler.h                  : .macro _Bitfield64DataStackPushAddress address:req, clobberGeneral=%rax
+./include/crude_compiler.h                  : .macro _Bitfield8DataStackPushGeneral register=%eax
+./include/crude_compiler.h                  : .macro _SIMDPush register=%xmm0
+./include/crude_compiler.h                  : .macro _DataStackPushFromRAM address:req SIMDClobber=%xmm0 aligned=TRUE
+./include/crude_compiler.h                  : .macro _DataStackCopyToRAM address:req SIMDClobber=%xmm0 aligned=TRUE
+./include/crude_compiler.h                  : .macro _Scalar64BroadcastToSIMD128 scalarRegister:req receiveRegister:req
+./include/crude_compiler.h                  : .macro _SIMD128GatherBitfield64 indexRegister=%xmm1 receiveRegister=%xmm0
+./include/crude_compiler.h                  : .macro _ScalarMinimum source=%rdx destination=%rax
+./include/crude_compiler.h                  : .macro _ScalarMaximum source=%rdx destination=%rax
+./include/crude_compiler.h                  : .macro _SetAllBitsZero register=%xmm7
+./include/crude_compiler.h                  : .macro _SetAllBitsOne register=%xmm7
+./test_sources/scalar_branch_test_crude.S   : .macro TestSet operand:req message:req operator:req
+./sources/junk.S                            : .macro ScalarBranch mode=SCALAR_UNCONDITIONAL
+./include/crude_compiler.h                  : .macro DataStackRetreat
+./include/crude_compiler.h                  : .macro DataStackRetreatTwice
+./include/crude_compiler.h                  : .macro DataStackRetreatThrice
+./include/crude_compiler.h                  : .macro Bitfield64ScalarBroadcast
+./include/crude_compiler.h                  : .macro Bitfield8ScalarBroadcast
+./include/crude_compiler.h                  : .macro systemExit
+./include/crude_compiler.h                  : .macro PushParentOwnedRegisters
+./include/crude_compiler.h                  : .macro PopParentOwnedRegisters
+./include/crude_compiler.h                  : .macro PrepareSimpleCallStackFrame
+./include/crude_compiler.h                  : .macro DismantleSimpleCallStackFrame
+./include/crude_compiler.h                  : .macro EndAlienCallStackFrame
+./include/crude_compiler.h                  : .macro ReturnToAlienCaller
+./include/crude_compiler.h                  : .macro ClearDataStack
+./include/crude_compiler.h                  : .macro MinimumSignedInteger64 ClobberSIMD=%xmm1
+./include/crude_compiler.h                  : .macro MinimumUnsignedInteger64 ClobberSIMD1=%xmm1 ClobberSIMD2=%xmm2 ClobberScalar=%rax
+./include/crude_compiler.h                  : .macro MinimumSignedInteger8 ClobberSIMD=%xmm1
+./include/crude_compiler.h                  : .macro MinimumUnsignedInteger8 ClobberSIMD=%xmm0
+./include/crude_compiler.h                  : .macro MaximumSignedInteger64 ClobberSIMD=%xmm1
+./include/crude_compiler.h                  : .macro MaximumUnsignedInteger64 ClobberSIMD1=%xmm1 ClobberSIMD2=%xmm2 ClobberScalar=%rax
+./include/crude_compiler.h                  : .macro MaximumSignedInteger8 ClobberSIMD=%xmm1
+./include/crude_compiler.h                  : .macro MaximumUnsignedInteger8 ClobberSIMD=%xmm0
+./include/crude_compiler.h                  : .macro Bitfield64Count
+./include/crude_compiler.h                  : .macro Duplicate
+./include/crude_compiler.h                  : .macro Exchange
+./include/crude_compiler.h                  : .macro Bitfield64Index
+./include/crude_compiler.h                  : .macro Bitfield64negate
+./include/crude_compiler.h                  : .macro Bitfield8negate
+./include/crude_compiler.h                  : .macro Bitfield64add
+./include/crude_compiler.h                  : .macro Bitfield8add
+./include/crude_compiler.h                  : .macro UnsignedInteger63multiply
+./include/crude_compiler.h                  : .macro Bitfield64equal
+./include/crude_compiler.h                  : .macro Bitfield8equal
+./include/crude_compiler.h                  : .macro SignedInteger64greaterThan
+./include/crude_compiler.h                  : .macro SignedInteger8greaterThan
+./include/crude_compiler.h                  : .macro Bitfield64bitShiftDownZeroPad
+./include/crude_compiler.h                  : .macro Bitfield64bitShiftUpZeroPad
+./include/crude_compiler.h                  : .macro Bitfield64bitRotateDown
+./include/crude_compiler.h                  : .macro Bitfield64bitRotateUp
+./include/crude_compiler.h                  : .macro Bitfield64castToBoolean
+./include/crude_compiler.h                  : .macro Bitfield8castToBoolean
+./include/crude_compiler.h                  : .macro BooleanPushTrue
+./include/crude_compiler.h                  : .macro BooleanPushFalse
+./include/crude_compiler.h                  : .macro Bitfield64PushZero
+./include/crude_compiler.h                  : .macro BooleanNot
+./include/crude_compiler.h                  : .macro BooleanAnd
+./include/crude_compiler.h                  : .macro BooleanOr
+./include/crude_compiler.h                  : .macro BooleanXor
+./include/crude_compiler.h                  : .macro Bitfield64MaskBlend
+./include/crude_compiler.h                  : .macro Bitfield8MaskBlend
+./include/crude_compiler.h                  : .macro Bitfield64ConditionalMaskBlendOneArgument
+./include/crude_compiler.h                  : .macro Bitfield8ConditionalMaskBlendOneArgument
+./include/crude_compiler.h                  : .macro _Bitfield64BranchPrep
+./include/crude_compiler.h                  : .macro _Bitfield64BranchDecideForceCallerToReturn forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro BranchUnconditional destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro Bitfield64BranchLessThan destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro Bitfield64BranchGreaterThan destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro Bitfield64BranchEqual destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro Bitfield64BranchAnd destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro Bitfield64BranchGreaterThanOrEqual destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro Bitfield64BranchLessThanOrEqual destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro Bitfield64BranchNotEqual destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro Bitfield64BranchNand destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro Bitfield64Immediate value:req
+./include/crude_compiler.h                  : .macro Bitfield64ImmediateVector128 value1:req value2:req
+./include/crude_compiler.h                  : .macro Bitfield8Immediate value:req
+./include/crude_compiler.h                  : .macro Bitfield8ImmediateVector128
+./include/crude_compiler.h                  : .macro PrintStackMessage message:req
+./include/crude_compiler.h                  : .macro VectorBranchTrue destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro VectorBranchFalse destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro VectorBranchAnd destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro VectorBranchMaskEqual destination:req forceBranchCallerToReturn=FALSE
+./include/crude_compiler.h                  : .macro indexedRAMtoStack metaIndex=0 basePointer:req ClobberRegisterSIMD=%xmm0 ClobberRegisterScalarA=%rax ClobberRegisterScalarB=%rcx
+./include/TestAnythingProtocolProducer.h    : .macro stackPartialTest literalAddress:req count:req
+./include/TestAnythingProtocolProducer.h    : .macro stackFullTest literalAddress:req count:req
+./include/TestAnythingProtocolProducer.h    : .macro _crudeTestMemCopy
+./include/TestAnythingProtocolProducer.h    : .macro ok1 testName:req testFailMessage:req
+./include/TestAnythingProtocolProducer.h    : .macro plan1 totalTestCount:req planReason:req
+./include/libmb_s.h                         : .macro systemExitMacro returnValue=0
+./include/libmb_s.h                         : .macro putNewlineMacro fileDescriptor=$STDOUT
+./include/libmb_s.h                         : .macro getMemoryMacro messageLocation:req length:req fileDescriptor=$STDIN
+./include/libmb_s.h                         : .macro putMemoryMacro messageLocation:req length:req fileDescriptor=$STDOUT
+./include/libmb_s.h                         : .macro putLiteralMacro message:req fileDescriptor=$STDOUT
+./include/libmb_s.h                         : .macro SSE42_InkStamp0xFF stamp=%xmm15
+./include/libmb_s.h                         : .macro SSE42_InkStamp0x00 stamp=%xmm14
+./include/libmb_s.h                         : .macro SSE42_memset128BitBlocks stamp=%xmm15 destinationAddress:req repeat=1 currentIndex=0
+./include/libmb_s.h                         : .macro SSE42_memset16ByteBlocks stamp=%xmm15 destinationAddress:req repeat=1 currentIndex=0
+./include/libmb_s.h                         : .macro LoopBail
+./include/libmb_s.h                         : .macro LoopGetByteCount

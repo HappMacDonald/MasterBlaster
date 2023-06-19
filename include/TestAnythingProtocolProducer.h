@@ -2,7 +2,7 @@
 
 // 2023-05-30T12:07-07:00 Current Status:
 // Woohoo, found/resolved problem printing things in general. :)
-// Lowdown: ok1MemCopy is meant to update its dest address to the end of what it last copied.
+// Lowdown: _crudeTestMemCopy is meant to update its dest address to the end of what it last copied.
 // It was updating the register it uses to that effect internally
 // , but *not* updating the register caller used to give it that data.
 // Now it is.
@@ -213,20 +213,20 @@ stackFullTestEnd\@:
 //   bytelength specified.
 // * Bytelength must be a literal constant integer
 //
-// `ok1MemCopy` macro accepts as arguments:
+// `_crudeTestMemCopy` macro accepts as arguments:
 // * macro "sourceAddress"
 // * macro "destinationAddress"
 // * macro "byteLength" integer
-// Side effect: `ok1MemCopy` macro copies ceil(byteLength/SIMD_WIDTH)
+// Side effect: `_crudeTestMemCopy` macro copies ceil(byteLength/SIMD_WIDTH)
 //   bytes from \sourceAddress to \destinationAddress
-// Data Stack: `ok1MemCopy` macro does not intentionally alter the Data Stack
+// Data Stack: `_crudeTestMemCopy` macro does not intentionally alter the Data Stack
 // General Registers:
 // * clobbers macro argument `scalarRegisterLength` defaults to %rcx
 // * clobbers macro argument `scalarRegisterSource` defaults to %rax
 // * clobbers macro argument `scalarRegisterDestination` defaults to %rdi
 // SIMD Registers:
 // * clobbers macro argument `SIMDRegister` defaults to %xmm0
-.macro ok1MemCopy \
+.macro _crudeTestMemCopy \
   sourceAddress:req \
   destinationAddress:req \
   byteLength:req \
@@ -234,17 +234,17 @@ stackFullTestEnd\@:
   scalarRegisterLength=%rcx \
   scalarRegisterSource=%rax \
   scalarRegisterDestination=%rdi
-ok1MemCopy\@:
+_crudeTestMemCopy\@:
   mov $\byteLength, \scalarRegisterLength
   leaq \sourceAddress, \scalarRegisterSource
   mov \destinationAddress, \scalarRegisterDestination
-ok1MemCopyLoop\@:
+_crudeTestMemCopyLoop\@:
   movdqu (\scalarRegisterSource), \SIMDRegister
   movdqu \SIMDRegister, (\scalarRegisterDestination)
   add $SIMD_WIDTH, \scalarRegisterSource
   add $SIMD_WIDTH, \scalarRegisterDestination
   sub $SIMD_WIDTH, \scalarRegisterLength
-  ja ok1MemCopyLoop\@
+  ja _crudeTestMemCopyLoop\@
   mov \destinationAddress, \scalarRegisterDestination
   add $\byteLength, \scalarRegisterDestination
   mov \scalarRegisterDestination, \destinationAddress
@@ -293,10 +293,10 @@ ok1MemCopyLoop\@:
 ok1\@:
   Bitfield64castToBoolean
   leaq testPointName(%rip), \ok1StringBuilder
-  ok1MemCopy testName\@(%rip), \ok1StringBuilder, testName\@Length
-  ok1MemCopy constantYAMLPreamble(%rip), \ok1StringBuilder, constantYAMLPreambleLength
-  ok1MemCopy testFailMessage\@(%rip), \ok1StringBuilder, testFailMessage\@Length
-  ok1MemCopy constantYAMLPost(%rip), \ok1StringBuilder, constantYAMLPostLength
+  _crudeTestMemCopy testName\@(%rip), \ok1StringBuilder, testName\@Length
+  _crudeTestMemCopy constantYAMLPreamble(%rip), \ok1StringBuilder, constantYAMLPreambleLength
+  _crudeTestMemCopy testFailMessage\@(%rip), \ok1StringBuilder, testFailMessage\@Length
+  _crudeTestMemCopy constantYAMLPost(%rip), \ok1StringBuilder, constantYAMLPostLength
   // .. not really necessary, but just in case I feel
   // like endcapping the output buffer at some point.
   // movb $0, \ok1StringBuilder

@@ -720,7 +720,7 @@ _Bitfield64DataStackPushAddress\@:
 // the stack.
 // New top of stack => %xmm0
 // all 0 => %xmm7
-// Tested and passed 2022-04-17T20:05-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 .macro _Bitfield8DataStackPushGeneral register=%eax
 _Bitfield8DataStackPushGeneral\@:
   // 32 bits gets moved here, but only low 8 bits will survive.
@@ -1219,7 +1219,7 @@ Bitfield64negate\@:
 // 0 in every lane => %xmm1
 // input 1 unit, output 1 unit
 // If output high bit set, then input was a valid Bitfield8.
-// Tested and passed 2022-04-17T20:05-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro Bitfield8negate
 Bitfield8negate\@:
@@ -1250,7 +1250,7 @@ Bitfield64add\@:
 // old DATA_STACK1 => %xmm1
 // input 2 unit, output 1 unit
 // If output high bit set, then overflow Bitfield8.
-// Tested and passed 2022-04-17T20:05-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro Bitfield8add
 Bitfield8add\@:
@@ -1314,7 +1314,7 @@ Bitfield64equal\@:
 // If output high bit set, then TRUE. Otherwise FALSE.
 // WARNING: always ensure your boolean registers are pure 0 or 1.
 // This macro guarantees that on output.
-// Tested and passed 2022-04-17T20:05-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro Bitfield8equal
 Bitfield8equal\@:
@@ -1349,7 +1349,7 @@ SignedInteger64greaterThan\@:
 // input 2 unit, output 1 unit
 // If output high bit set, then TRUE. Otherwise FALSE.
 // WARNING: always ensure your boolean registers are pure 0 or 1.
-// This macro guarantees that on output.
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro SignedInteger8greaterThan
 SignedInteger8greaterThan\@:
@@ -1501,7 +1501,7 @@ Bitfield64castToBoolean\@:
 // NEW top of stack => %xmm0
 // OLD top of stack => %xmm1
 // input 1 unit, output 1 unit
-// Tested and passed 2022-04-17T20:05-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro Bitfield8castToBoolean
 Bitfield8castToBoolean\@:
@@ -1549,7 +1549,7 @@ BooleanPushFalse\@:
 // NEW top of stack (only pure valid boolean if input was) => %xmm0
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
-// Tested and passed 2022-04-03T09:57-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro BooleanNot
 BooleanNot\@:
@@ -1566,7 +1566,7 @@ BooleanNot\@:
 // NEW top of stack (only pure valid boolean if input was) => %xmm0
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
-// Tested and passed 2022-04-20T23:21-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro BooleanAnd
 BooleanAnd\@:
@@ -1584,7 +1584,7 @@ BooleanAnd\@:
 // NEW top of stack (only pure valid boolean if input was) => %xmm0
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
-// Tested and passed 2022-04-03T09:57-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro BooleanOr
 BooleanOr\@:
@@ -1602,7 +1602,7 @@ BooleanOr\@:
 // NEW top of stack (only pure valid boolean if input was) => %xmm0
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
-// Tested and passed 2022-04-03T09:57-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro BooleanXor
 BooleanXor\@:
@@ -1632,7 +1632,7 @@ Bitfield64MaskBlend\@:
 // Returns A and B blended such that Mask lanes that cast to True (high bit set)
 // shine through the A term, while cast to false (high bit unset)
 // shine through the B term.
-// Tested and passed 2022-04-17T20:05-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 // "
 .macro Bitfield8MaskBlend
 Bitfield8MaskBlend\@:
@@ -1871,7 +1871,7 @@ ImmediateVector\@:
   mov %rax, DATA_STACK0_5
 .endm
 
-// Tested and passed 2022-04-17T20:05-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 .macro Bitfield8Immediate value:req
 Immediate\@:
   // only lowest 8 bits will survive,
@@ -1882,7 +1882,7 @@ Immediate\@:
 .endm
 
 // New top of stack => %xmm0
-// Tested and passed 2022-04-17T20:05-07:00
+// Testcase confirmed passed 2023-06-10T16:21-07:00
 .macro Bitfield8ImmediateVector128 \
   value1:req  value2:req  value3:req  value4:req \
   value5:req  value6:req  value7:req  value8:req \
