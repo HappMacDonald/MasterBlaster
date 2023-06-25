@@ -691,6 +691,15 @@ It would be nice if I could arrange for errors found within macro expansions to 
 ** Seriously tho.. would it kill gdb team to just pipe tty through a subwindow in the ncurses layout? ;P
 * x/1bx <thing> (x)prints the (1)one (b)yte at that place in he(x).
 ** x/16gx $rbx for example should dump the current crude data stack.
+** if `x/16gx MEMORY_SCRATCHPAD` (where MEMORY_SCRATCHPAD is some symbolic address in RAM)
+   gives you an error like `'MEMORY_SCRATCHPAD' has unknown type; cast it to its declared type`
+   , then what it means is that you must append a & to it to clarify that
+   you want to treat this symbol like its "value" is an address in memory.
+   `x/16gx &MEMORY_SCRATCHPAD`
+** if you want to do pointer math on a symbolic memory address, then you will
+   not be able to avoid casting it to a type. The following example works to
+   start the readout exactly one byte later than where the symbol points.
+   `x/4gx ((char*)&OUTPUT_BUFFER + 1)`
 * p (char[<length>])<place> coughs up a string of predefined length.
 ** example: p (char[22]) *$rax prints 22 char long string at memory location in $rax
 * gdb cheatsheet here https://users.ece.utexas.edu/~adnan/gdb-refcard.pdf

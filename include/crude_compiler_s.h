@@ -3,9 +3,24 @@
 // gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
 // Though ultimately I'm using `compile_w_debug.sh` and `compile_optimized.sh` until I can get proper makefile support online.
 
+// 2023-06-25T05:23-07:00 current status:
+// subroutineTests are all functioning properly now.
+// Next issue is I'm chafing at the performance penalties of ESR's tapview.sh
+// I'm doing some quick research on Bash script benchmarking strats before trying
+// to bring this up as an issue on his https://gitlab.com/esr/tapview repo
+// CGPT suggests `bashprof` which appears to be a python module, so going
+// through the snowball of upgrading my python thus upgrading my debian distro.
+
+// 2023-06-23T23:31-07:00 current status:
+// adding lots of rigor to subroutine tests
+// Current status: in `subroutineTests`, I get part 3 of both decimal tests failing.
+// (later ed note: problem was that the endianness of my mask was backwards)
+
 // 2023-06-04T10:07-07:00 simple idea note:
 // give weight to syntax sugar for "swizzling" which is
 // a method of (short?) vector shuffling popular among shader coders.
+// (later ed note:) where did I hear this from though? I want to remember
+// the context for the motivation of this idea now. 😭
 //
 // Also: first draft/placeholder termonology for the counterintuitive
 // synthesis of design goals I want to champion sportsmanlike participation in.
@@ -563,7 +578,7 @@
 #define KERNEL_INTEGER64_ARGUMENT6 r9
 #define KERNEL_INTEGER64_RETURN1 rax
 
-// 32 bit registers (same regs, just bottom halves)
+// 32 bit registers (same regs, just bottom 4 bytes)
 #define ALIEN_INTEGER32_ARGUMENT1 edi
 #define ALIEN_INTEGER32_ARGUMENT2 esi
 #define ALIEN_INTEGER32_ARGUMENT3 edx
@@ -579,6 +594,40 @@
 #define KERNEL_INTEGER32_ARGUMENT5 r8d
 #define KERNEL_INTEGER32_ARGUMENT6 r9d
 #define KERNEL_INTEGER32_RETURN1 eax
+
+// 16 bit registers (same regs, just bottom 2 bytes)
+#define ALIEN_INTEGER16_ARGUMENT1 di
+#define ALIEN_INTEGER16_ARGUMENT2 si
+#define ALIEN_INTEGER16_ARGUMENT3 dx
+#define ALIEN_INTEGER16_ARGUMENT4 cx
+#define ALIEN_INTEGER16_ARGUMENT5 r8w
+#define ALIEN_INTEGER16_ARGUMENT6 r9w
+#define ALIEN_INTEGER16_RETURN1 ax
+#define ALIEN_INTEGER16_RETURN2 dx
+#define KERNEL_INTEGER16_ARGUMENT1 di
+#define KERNEL_INTEGER16_ARGUMENT2 si
+#define KERNEL_INTEGER16_ARGUMENT3 dx
+#define KERNEL_INTEGER16_ARGUMENT4 r10w
+#define KERNEL_INTEGER16_ARGUMENT5 r8w
+#define KERNEL_INTEGER16_ARGUMENT6 r9w
+#define KERNEL_INTEGER16_RETURN1 ax
+
+// 8 bit registers (same regs, just bottom byte)
+#define ALIEN_INTEGER8_ARGUMENT1 dil
+#define ALIEN_INTEGER8_ARGUMENT2 sil
+#define ALIEN_INTEGER8_ARGUMENT3 dl
+#define ALIEN_INTEGER8_ARGUMENT4 cl
+#define ALIEN_INTEGER8_ARGUMENT5 r8b
+#define ALIEN_INTEGER8_ARGUMENT6 r9b
+#define ALIEN_INTEGER8_RETURN1 al
+#define ALIEN_INTEGER8_RETURN2 dl
+#define KERNEL_INTEGER8_ARGUMENT1 dil
+#define KERNEL_INTEGER8_ARGUMENT2 sil
+#define KERNEL_INTEGER8_ARGUMENT3 dl
+#define KERNEL_INTEGER8_ARGUMENT4 r10b
+#define KERNEL_INTEGER8_ARGUMENT5 r8b
+#define KERNEL_INTEGER8_ARGUMENT6 r9b
+#define KERNEL_INTEGER8_RETURN1 al
 
 #define SYSCALL_REGISTER rax
 #define SYSCALL_SYS_READ 0x00
@@ -1557,7 +1606,7 @@ BooleanPushFalse\@:
 // EG: (1 2 3 [something that would cast to TRUE]) Bitfield64BooleanNot
 //      ==> (1 2 3 FALSE), and vice versa.
 // NEW top of stack (pure Bitfield64 Booleans) => %xmm0
-// Testcase tainted
+// Testcase confirmed passed 2023-06-23T22:46-07:00
 // "
 .macro Bitfield64BooleanNot
 Bitfield64BooleanNot\@:
@@ -1573,7 +1622,7 @@ Bitfield64BooleanNot\@:
 // EG: (1 2 3 [something that would cast to TRUE]) Bitfield8BooleanNot
 //      ==> (1 2 3 FALSE), and vice versa.
 // NEW top of stack (pure Bitfield8 Booleans) => %xmm0
-// Testcase tainted
+// Testcase confirmed passed 2023-06-23T22:46-07:00
 // "
 .macro Bitfield8BooleanNot
 Bitfield8BooleanNot\@:
@@ -1591,7 +1640,7 @@ Bitfield8BooleanNot\@:
 // NEW top of stack (only pure valid boolean if input was) => %xmm0
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
-// Testcase confirmed passed 2023-06-10T16:21-07:00
+// Testcase confirmed passed 2023-06-23T22:46-07:00
 // "
 .macro BooleanAnd
 BooleanAnd\@:
@@ -1609,7 +1658,7 @@ BooleanAnd\@:
 // NEW top of stack (only pure valid boolean if input was) => %xmm0
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
-// Testcase confirmed passed 2023-06-10T16:21-07:00
+// Testcase confirmed passed 2023-06-23T22:46-07:00
 // "
 .macro BooleanOr
 BooleanOr\@:
@@ -1627,11 +1676,11 @@ BooleanOr\@:
 // NEW top of stack (only pure valid boolean if input was) => %xmm0
 // If you wish to force purity, simply run this command
 // and then chase it with Bitfield(size)castToBoolean: job done.
-// Testcase confirmed passed 2023-06-10T16:21-07:00
+// Testcase confirmed passed 2023-06-23T22:46-07:00
 // "
 .macro BooleanXor
 BooleanXor\@:
-  movdqa %xmm0, DATA_STACK0
+  movdqa DATA_STACK0, %xmm0
   pxor DATA_STACK1, %xmm0
   movdqa %xmm0, DATA_STACK1
   DataStackRetreat

@@ -45,29 +45,35 @@ getMemoryProcedure:
 _unsignedIntegerToStringBase16:
 .bufferLength = 16
 .bufferLast = .bufferLength-1
-  addq $.bufferLast, %rsi # advance arg2 to end of buffer
+  addq $.bufferLast, %ALIEN_INTEGER64_ARGUMENT2 # advance arg2 to end of buffer
   # copy new arg2 to ret1, which will track the left side of answer.
   # arg2 will stay at the right side of answer.
-  movq %rsi, %rax
+  movq %ALIEN_INTEGER64_ARGUMENT2, %ALIEN_INTEGER64_RETURN1
 0: #.loop
-  movq %rdi, %rdx # copy arg1 (number to cast) into arg3
-  andq $0x0F, %rdx  # mask out all but the last four bits of arg3, leaving LSnibble.
-  leaq TrigentasenaryUppercaseDigits(%rip), %rcx # Load digit list address into arg4
+  movq %ALIEN_INTEGER64_ARGUMENT1, %ALIEN_INTEGER64_ARGUMENT3 # copy arg1 (number to cast) into arg3
+  andq $0x0F, %ALIEN_INTEGER64_ARGUMENT3  # mask out all but the last four bits of arg3, leaving LSnibble.
+  leaq TrigentasenaryUppercaseDigits(%rip), %ALIEN_INTEGER64_ARGUMENT4 # Load digit list address into arg4
   #####
   # ( Add nibble digit (arg3) to base of digit list (arg4)
   # , pull ASCII digit character at that location
   # , put into arg5(LSB)
   # )
-  movb (%rcx,%rdx,1), %r8b
-  movb %r8b, (%rax) # .. then put it into current left end of result.
-  dec %rax # March left side of result further left by one byte.
-  shrq $4, %rdi # demote all nibbles of arg1 by one nibble position
+  movb \
+  ( %ALIEN_INTEGER64_ARGUMENT4\
+  , %ALIEN_INTEGER64_ARGUMENT3\
+  , 1\
+  )\
+  , %ALIEN_INTEGER8_ARGUMENT5
+
+  movb %ALIEN_INTEGER8_ARGUMENT5, (%ALIEN_INTEGER64_RETURN1) # .. then put it into current left end of result.
+  dec %ALIEN_INTEGER64_RETURN1 # March left side of result further left by one byte.
+  shrq $4, %ALIEN_INTEGER64_ARGUMENT1 # demote all nibbles of arg1 by one nibble position
   jnz 0b # .loop
 # .endLoop
-  inc %rax # backpedal left side (ret1) to point at most recently written HSdigit
-  inc %rsi # step arg2 forward to one byte past end of result/buffer
-  subq %rax, %rsi # transform arg2 from "end of result&buffer" to "length of result"
-  movq %rsi, %rdx # .. and then copy that to proper ret2.
+  inc %ALIEN_INTEGER64_RETURN1 # backpedal left side to point at most recently written HSdigit
+  inc %ALIEN_INTEGER64_ARGUMENT2 # step arg2 forward to one byte past end of result/buffer
+  subq %ALIEN_INTEGER64_RETURN1, %ALIEN_INTEGER64_ARGUMENT2 # transform arg2 from "end of result&buffer" to "length of result"
+  movq %ALIEN_INTEGER64_ARGUMENT2, %ALIEN_INTEGER64_RETURN2 # .. and then copy that to proper ret2.
   # ret1(%rax) still holds left side of result
   ret
 
