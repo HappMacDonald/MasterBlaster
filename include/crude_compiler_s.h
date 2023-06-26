@@ -3,6 +3,10 @@
 // gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
 // Though ultimately I'm using `compile_w_debug.sh` and `compile_optimized.sh` until I can get proper makefile support online.
 
+// 2023-06-26T09:55-07:00 current status:
+// subroutineTests and bitfield8tests coinfirmed testing accurately
+// tapsummary.awk is being fast and smoov
+
 // 2023-06-25T05:23-07:00 current status:
 // subroutineTests are all functioning properly now.
 // Next issue is I'm chafing at the performance penalties of ESR's tapview.sh

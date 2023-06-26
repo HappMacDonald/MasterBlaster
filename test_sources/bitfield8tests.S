@@ -8,11 +8,6 @@ _start:
 
   plan1 10 "bitfield8 tests"
 
-  mov $1, %eax
-  ok1 "a", "b", ok1BooleanTestRegister=%eax, ok1BooleanSource=%eax
-  mov $0, %eax
-  ok1 "c", "d", ok1BooleanTestRegister=%eax, ok1BooleanSource=%eax
-
   // only lowest 8 bits will survive,
   // but hardware limitations require me
   // to pass this value around as 32-bit or greater.
@@ -115,25 +110,34 @@ FF00FF000000FF00 00FF00FF00FF00FF
   ok1 "SignedInteger8greaterThan", "oof"
   // PrintStackMessage "SignedInteger8greaterThan"
 
-  DataStackRetreatTwice
+  ClearDataStack
+
+.memoryBlock zomg
+2597C00002C3527C C300C3C32400C364
+F2C30CF7F25CF1F6 AAA94E0406CF8245
+.endMemoryBlock
+  zomg2 = zomg+SIMD_WIDTH
+  _DataStackPushFromRAM zomg2(%rip)
+  _DataStackPushFromRAM zomg(%rip)
+
   // PrintStackMessage "About to cast zomg-1 to boolean."
 
-  Duplicate
   Bitfield8castToBoolean
+  // PrintStackMessage "Bitfield8castToBoolean"
 .memoryBlock Bitfield8castToBoolean
-00000000000000FF FF00000000000000
+FFFFFF00FFFFFFFF FF00FFFFFF00FFFF
 .endMemoryBlock
   stackPartialTest Bitfield8castToBoolean(%rip), count=1
   ok1 "Bitfield8castToBoolean", "oof"
-  // PrintStackMessage "Bitfield8castToBoolean"
 
   Bitfield64Immediate 0
   Exchange
   // PrintStackMessage "About to Bitfield8MaskBlend"
 
   Bitfield8MaskBlend
+  // PrintStackMessage "Bitfield8MaskBlend done"
 .memoryBlock Bitfield8MaskBlend
-0103050c18305000 0070381c0e070301
+000000F700000000 00A9000000CF0000
 .endMemoryBlock
   stackPartialTest Bitfield8MaskBlend(%rip), count=1
   ok1 "Bitfield8MaskBlend", "oof"
