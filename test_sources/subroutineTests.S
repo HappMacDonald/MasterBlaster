@@ -37,7 +37,7 @@ _start:
 .endMemoryBlock
   Expected_0x1111111111111111_BYTE_8 = Expected_0x1111111111111111 + 8
 
-  plan1 999 "subroutine tests"
+  plan1 24 "subroutine tests"
 
   movq $0x1111111111111111, %ALIEN_INTEGER64_ARGUMENT1 // numeric value to render into hex
   leaq OUTPUT_BUFFER(%rip), %ALIEN_INTEGER64_ARGUMENT2 // place to print it

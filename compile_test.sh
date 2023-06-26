@@ -4,6 +4,6 @@ EXECUTABLE="test_binaries/$1.elf64"
 ./crude_preprocessor.pl $SOURCE_A > $SOURCE_B \
 && gcc -Iinclude -fPIC -nostartfiles -nostdlib -Wall -g -ggdb -gdwarf-4 -g3 -F dwarf -m64 $SOURCE_B sources/libmb_s.S -o $EXECUTABLE \
 && ( $EXECUTABLE \
-   | ./tapview.sh\
+   | ./tapsummary.awk\
    ; printf 'Tapview return value was: %d\n' $?
    )
