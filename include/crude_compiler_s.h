@@ -3,8 +3,14 @@
 // gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
 // Though ultimately I'm using `compile_w_debug.sh` and `compile_optimized.sh` until I can get proper makefile support online.
 
+// 2023-07-01T09:50-07:00 current status:
+// minmax_test_crude confirmed testing accurately
+// When we're ready to rename and refactor things, I want to rename
+// the "minmax" functions so that their name makes it more clear that they
+// are min(x,y) and max(x,y) functions and not MAXINT style constants.
+
 // 2023-06-26T09:55-07:00 current status:
-// subroutineTests and bitfield8tests coinfirmed testing accurately
+// subroutineTests and bitfield8tests confirmed testing accurately
 // tapsummary.awk is being fast and smoov
 
 // 2023-06-25T05:23-07:00 current status:
@@ -23,8 +29,7 @@
 // 2023-06-04T10:07-07:00 simple idea note:
 // give weight to syntax sugar for "swizzling" which is
 // a method of (short?) vector shuffling popular among shader coders.
-// (later ed note:) where did I hear this from though? I want to remember
-// the context for the motivation of this idea now. 😭
+// https://www.khronos.org/opengl/wiki/Data_Type_(GLSL)#Swizzling
 //
 // Also: first draft/placeholder termonology for the counterintuitive
 // synthesis of design goals I want to champion sportsmanlike participation in.
@@ -1069,6 +1074,8 @@ _ScalarMaximum\@:
 .endm
 
 // "
+// Given 2 stack elements of lanes of SignedInteger64 data,
+// blend them using the smallest value in each lane.
 // Always clobbers %xmm0
 // Tested and passed 2022-05-11T03:44-07:00
 // "
@@ -1082,8 +1089,12 @@ MinimumSignedInteger64\@:
   movdqa \ClobberSIMD, DATA_STACK0
 .endm
 
+// "
+// Given 2 stack elements of lanes of UnsignedInteger64 data,
+// blend them using the smallest value in each lane.
 // Always clobbers %xmm0
 // Tested and passed 2022-05-11T03:44-07:00
+// "
 .macro MinimumUnsignedInteger64 ClobberSIMD1=%xmm1 ClobberSIMD2=%xmm2 ClobberScalar=%rax
 MinimumUnsignedInteger64\@:
   DataStackRetreat
@@ -1099,7 +1110,11 @@ MinimumUnsignedInteger64\@:
   movdqa \ClobberSIMD1, DATA_STACK0
 .endm
 
+//"
+// Given 2 stack elements of lanes of SignedInteger8 data,
+// blend them using the smallest value in each lane.
 // Tested and passed 2022-05-11T03:44-07:00
+//"
 .macro MinimumSignedInteger8 ClobberSIMD=%xmm1
 MinimumSignedInteger8\@:
   DataStackRetreat
@@ -1108,7 +1123,11 @@ MinimumSignedInteger8\@:
   movdqa \ClobberSIMD, DATA_STACK0
 .endm
 
+//"
+// Given 2 stack elements of lanes of UnsignedInteger8 data,
+// blend them using the smallest value in each lane.
 // Tested and passed 2022-05-11T03:44-07:00
+//"
 .macro MinimumUnsignedInteger8 ClobberSIMD=%xmm0
 MinimumUnsignedInteger8\@:
   DataStackRetreat
@@ -1117,8 +1136,12 @@ MinimumUnsignedInteger8\@:
   movdqa \ClobberSIMD, DATA_STACK0
 .endm
 
+// "
+// Given 2 stack elements of lanes of SignedInteger64 data,
+// blend them using the largest value in each lane.
 // Always clobbers %xmm0
 // Tested and passed 2022-05-11T03:44-07:00
+// "
 .macro MaximumSignedInteger64 ClobberSIMD=%xmm1
 MaximumSignedInteger64\@:
   DataStackRetreat
@@ -1129,8 +1152,12 @@ MaximumSignedInteger64\@:
   movdqa \ClobberSIMD, DATA_STACK0
 .endm
 
+// "
+// Given 2 stack elements of lanes of UnsignedInteger64 data,
+// blend them using the largest value in each lane.
 // Always clobbers %xmm0
 // Tested and passed 2022-05-11T03:44-07:00
+// "
 .macro MaximumUnsignedInteger64 ClobberSIMD1=%xmm1 ClobberSIMD2=%xmm2 ClobberScalar=%rax
 MaximumUnsignedInteger64\@:
   DataStackRetreat
@@ -1146,7 +1173,11 @@ MaximumUnsignedInteger64\@:
   movdqa \ClobberSIMD1, DATA_STACK0
 .endm
 
+// "
+// Given 2 stack elements of lanes of SignedInteger8 data,
+// blend them using the largest value in each lane.
 // Tested and passed 2022-05-11T03:44-07:00
+// "
 .macro MaximumSignedInteger8 ClobberSIMD=%xmm1
 MaximumSignedInteger8\@:
   DataStackRetreat
@@ -1155,7 +1186,11 @@ MaximumSignedInteger8\@:
   movdqa \ClobberSIMD, DATA_STACK0
 .endm
 
+// "
+// Given 2 stack elements of lanes of UnsignedInteger8 data,
+// blend them using the largest value in each lane.
 // Tested and passed 2022-05-11T03:44-07:00
+// "
 .macro MaximumUnsignedInteger8 ClobberSIMD=%xmm0
 MaximumUnsignedInteger8\@:
   DataStackRetreat
