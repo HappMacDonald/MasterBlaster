@@ -1967,14 +1967,16 @@ Bitfield64BranchNand\@:
 skip\@:
 .endm
 
-// input value should not use a sigil, that will get added in the macro.
+// input value should not use a `$` (numeric literal) sigil
+// , that will get added in the macro.
 .macro Bitfield64Immediate value:req
 Immediate\@:
   movq $\value, %rax
   _Bitfield64DataStackPushGeneral %rax
 .endm
 
-// input values should not use sigils, those will get added in the macro.
+// input values should not use `$` (numeric literal) sigils
+// , that will get added in the macro.
 .macro Bitfield64ImmediateVector128 value1:req value2:req
 ImmediateVector\@:
   movq $\value1, %rax
