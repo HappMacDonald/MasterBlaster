@@ -19,7 +19,7 @@ sub Error
   my($position) = shift;
   my($expectedToken) = shift;
   my($foundToken) = shift;
-  
+
   CORE::say STDERR '';
   CORE::say STDERR $errorMessage;
   CORE::say STDERR "Expected: $expectedToken" if(defined $expectedToken);
@@ -32,7 +32,7 @@ sub Error
 
 sub Assert
 { my $test = shift;
-  
+
   if(!$test)
   { Error @_;
   }
@@ -76,11 +76,11 @@ sub slice
   my($result) = [];
 
   for(my $index=0; $index<@$array; $index++)
-  { 
+  {
     if($index == $start)
     { push @$result, @$insert;
     }
-    
+
     if($index >= $start && $index < $end)
     { # do nuttin'
     }

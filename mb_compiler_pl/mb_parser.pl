@@ -125,7 +125,7 @@ sub ParseArgumentTypes
 
   $arguments->{WantsDelimiter} = FALSE if($parentType);
 
-  my($identifierCaps, $typePosition) = 
+  my($identifierCaps, $typePosition) =
     ExpectTokens
     ( $tokens
     , 'IDENTIFIER_CAPS'
@@ -200,7 +200,7 @@ sub ParseArgumentTypes
 sub ParseProcedureBody
 { my($tokens) = shift;
   my($typeAnnotation) = shift;
-  
+
   my($notused, $procedureBodyPosition) =
     ExpectTokens
     ( $tokens
@@ -339,14 +339,14 @@ sub ParseExpression
     * log($base)/log(2)
     + $signWasteBit
     );
-    my($bitsByValue) = 
+    my($bitsByValue) =
     ( ceil(log($magnitude->bdstr + $positiveValueWaste1) / log(2))
     + $signWasteBit
     );
     my($bitsNeeded) = max($bitsByLength, $bitsByValue);
     my($typeSize) = 0;
     my($largestBitDepth) = $BIT_DEPTH_KEYS->[-1];
-    
+
     for my $bits (@$BIT_DEPTH_KEYS)
     { if($bits>=$bitsNeeded)
       { $typeSize = $bits;
@@ -421,7 +421,7 @@ sub ParseSkipEndOfLine
 
 sub PeekPosition
 { my($tokens) = shift;
-  
+
   if($tokens->[0] ne 'POSITION')
   { die
     ( Dumper

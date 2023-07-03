@@ -86,7 +86,7 @@ sub GenerateExpression
 sub GenerateUnaryExpression
 { my($ast) = shift;
   my($ret) = GenerateExpression($ast->{Expression});
-  
+
   if($ast->{Operator} eq 'OPERATOR_UNARY_COMLPEMENT_ADDITIVE')
   { $ret .= "\tneg\t%rax\n";
   }

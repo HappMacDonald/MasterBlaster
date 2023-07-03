@@ -81,7 +81,7 @@ main =
 
 -- This out-of-the-box procedure uses a version of TEA to handle interactive STDIN/STDOUT
     CLI.STDIOProgram
-    { 
+    {
     -- Uses CLI.STDIOMessage here instead of any user-defined message type.
     -- STDIN is accepted by update as a message type: `STDIN String`.
     -- STDOUT/STDERR is accepted as a CLI.Command: `STDOUT String` and `STDERR String`.
@@ -129,7 +129,7 @@ update = Lambda message model ->
 
         increment : UpdateResult
         increment = Tuple (Increment model) []
-        
+
         decrement : UpdateResult
         decrement = Tuple (Decrement model) []
 
@@ -141,14 +141,14 @@ update = Lambda message model ->
         "higher" -> increment
         "bigger" -> increment
         "+1" -> increment
-      
+
         "down" -> decrement
         "decrement" -> decrement
         "less" -> decrement
         "lower" -> decrement
         "smaller" -> decrement
         "-1" -> decrement
-      
+
 
 
 
@@ -177,4 +177,3 @@ Tokens?
 'exit',
 'LITERAL_INTEGER',
 '69'
-

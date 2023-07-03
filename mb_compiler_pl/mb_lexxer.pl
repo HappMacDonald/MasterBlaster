@@ -19,7 +19,7 @@ my $SUPPRESS_WHITESPACE = qr([ \t]*);
 my $END_OF_LINE = qr((?:\r|\n)+);
 my $SUPPRESS_WS_AND_EOL = $SUPPRESS_WHITESPACE . $END_OF_LINE;
 
-my $TOKENS = 
+my $TOKENS =
 [ { PAREN_ROUND_OPEN =>
     { argumentCount => 0
     , pattern => qr(\()
@@ -152,7 +152,7 @@ sub lex
   $position = incrementPosition($1, $position);
 
   while(length $input)
-  { my($inputClone) = $input; 
+  { my($inputClone) = $input;
     TOKEN_SEARCH:
     for my $tokenLevel (@$TOKENS)
     { for my $token (keys %$tokenLevel)
@@ -165,7 +165,7 @@ sub lex
           if($argumentCount eq 'named')
           { # an array with one element,
             # a hashref of all named capture groups.
-            @matches = 
+            @matches =
             ( { %+ }
             )
           }

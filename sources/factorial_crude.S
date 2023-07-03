@@ -24,7 +24,7 @@ factorialInner:
 _start:
   // Treating inbound rbp=0 as parent's stack frame.
   EndAlienCallStackFrame
-  
+
   ImmediateVector 3,20
 PrintStackMessage "input"
   call factorial

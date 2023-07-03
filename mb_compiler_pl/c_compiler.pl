@@ -5,7 +5,7 @@ use warnings;
 use Data::Dumper;
 use JSON;
 
-my $TOKENS = 
+my $TOKENS =
 [ { PAREN_ROUND_OPEN =>
     { argumentCount => 0
     , pattern => qr(\()
@@ -87,7 +87,7 @@ sub lex
         if(my(@matches) = $input =~ /^$pattern/)
         { # truncated @matches array to be at most $argumentCount in length.
           splice @matches, $argumentCount;
-          
+
 #CORE::say "Match found: ". Dumper($token, $tokenLevel->{$token}, \@matches);
           $input =~ s/^$pattern\s*//;
           push(@$output, $token, @matches);
@@ -263,7 +263,7 @@ sub GenerateExpression
 sub GenerateUnaryExpression
 { my($ast) = shift;
   my($ret) = GenerateExpression($ast->{Expression});
-  
+
 
   if($ast->{Operator} eq 'OPERATOR_UNARY_COMLPEMENT_ADDITIVE')
   { $ret .= "\tneg\t%rax\n";
