@@ -3,6 +3,9 @@
 // gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
 // Though ultimately I'm using `compile_w_debug.sh` and `compile_optimized.sh` until I can get proper makefile support online.
 
+// 2023-07-02T18:16-07:00 current status:
+// ./test_all.sh and ./test_all_summary.sh are online and doin' fine :D
+
 // 2023-07-01T09:50-07:00 current status:
 // minmax_test_crude confirmed testing accurately
 // When we're ready to rename and refactor things, I want to rename
