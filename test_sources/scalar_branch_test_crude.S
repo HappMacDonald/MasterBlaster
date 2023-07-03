@@ -111,4 +111,5 @@ _start:
   TestRun 7, -3,  "Bitfield64BranchNand", "NAND", Expected_FALSE
   PutNewlineMacro
 
+  Bitfield64Immediate 0
   systemExit

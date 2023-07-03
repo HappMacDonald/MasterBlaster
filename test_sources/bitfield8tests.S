@@ -144,4 +144,5 @@ FFFFFF00FFFFFFFF FF00FFFFFF00FFFF
 
   // PrintStackMessage "Bitfield8MaskBlend"
 
+  Bitfield64Immediate 0
   systemExit

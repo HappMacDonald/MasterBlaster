@@ -350,4 +350,5 @@ _start:
   ok1 "$0xB length", "$0xB length was wrong"
   ok1 "$0xB buffer start", "$0xB buffer start was wrong"
 
+  Bitfield64Immediate 0
   systemExit

@@ -1,10 +1,17 @@
-SOURCE_A="test_sources/$1.S"
-SOURCE_B="build/$1.S"
-EXECUTABLE="test_binaries/$1.elf64"
-./crude_preprocessor.pl $SOURCE_A > $SOURCE_B \
-&& gcc -Iinclude -fPIC -nostartfiles -nostdlib -Wall -g -ggdb -gdwarf-4 -g3 -F dwarf -m64 $SOURCE_B sources/libmb_s.S -o $EXECUTABLE \
-&& ( printf 'Running test "%s":\n' "$SOURCE_A" \
-   ; $EXECUTABLE \
-   | ./tapsummary.awk\
-   ; printf 'Tapsummary return value was: %d\n' $?
-   )
+#!/bin/bash
+set -o pipefail
+test=$1
+SOURCE_A="test_sources/$test.S"
+SOURCE_B="build/$test.S"
+EXECUTABLE="test_binaries/$test.elf64"
+printf 'Running test "%s":\n' "$SOURCE_A"
+if \
+( ./crude_preprocessor.pl $SOURCE_A > $SOURCE_B \
+  && gcc -Iinclude -fPIC -nostartfiles -nostdlib -Wall -g -ggdb -gdwarf-4 -g3 -F dwarf -m64 $SOURCE_B sources/libmb_s.S -o $EXECUTABLE \
+)
+then
+   $EXECUTABLE | ./tapsummary.awk
+   printf '%s | ./tapsummary.awk pipe return value was: %s\n' $EXECUTABLE $?
+else
+   printf './crude_preprocessor.pl && gcc return value was: %s\n' $?
+fi

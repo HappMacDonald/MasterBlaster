@@ -10,6 +10,7 @@
 BEGIN \
 { TestName = "Unknown"
 ; Failed = 0 # until ANY evidence of failure
+; TestSummaryFound = 0
 }
 
 /^Running test "/ \
@@ -21,7 +22,8 @@ BEGIN \
 }
 
 / failures.$/ \
-{ if(Failed == 0 && /, 0 failures/)
+{ TestSummaryFound = 1
+  if(Failed == 0 && /, 0 failures/)
   { Failed = 0
   }
   else
@@ -29,8 +31,8 @@ BEGIN \
   }
 }
 
-/^Tapsummary return value was: / \
-{ if(Failed == 0 && /Tapsummary return value was: 0$/)
+/return value was: / \
+{ if(Failed == 0 && /return value was: 0$/)
   { Failed = 0
   }
   else
@@ -39,10 +41,15 @@ BEGIN \
 }
 
 END \
-{ if(Failed)
-  { print "not ok " TestName
+{ if(!TestSummaryFound)
+  { print "not ok " TestName " -- No Test Summary Found"
   }
   else
-  { print "ok " TestName
+  { if(Failed)
+    { print "not ok " TestName
+    }
+    else
+    { print "ok " TestName
+    }
   }
 }

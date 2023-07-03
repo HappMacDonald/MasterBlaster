@@ -119,5 +119,7 @@ FE	D1	FB	29	F5	E1	EF	17	ED	EF	E1	25	F9	FB	D1	35
   stackFullTest Expected_MaximumUnsignedInteger8(%rip), count=1
   ok1 "MaximumUnsignedInteger8", "oof"
   ClearDataStack
+  // movl $0, 0xfa17(%rbx)
 
+  Bitfield64Immediate 0
   SystemExit

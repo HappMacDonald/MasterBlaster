@@ -98,5 +98,5 @@ FFFFFFFFFFFFFFFF 0000000000000000
   ok1 "BooleanXor", "oof"
 
 
-
+  Bitfield64Immediate 0
   SystemExit
