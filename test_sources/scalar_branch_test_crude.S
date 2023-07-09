@@ -47,12 +47,12 @@ _start:
   plan1 41 "Scalar Branch Tests"
 
   Bitfield64Immediate ARBITRARY_DATA_STACK_BOOKEND
-  PrintStackMessage "Starting test: Unconditional"
+  PrintStackMessage "Starting test: BranchUnconditional"
   Bitfield64Immediate FALSE
   BranchUnconditional doingStuff
-  PrintStackMessage "Starting test: Unconditional result"
+  PrintStackMessage "Starting test: BranchUnconditional result"
   stackFullTest Expected_TRUE(%rip), 2
-  ok1 "Starting test: Unconditional", "oof"
+  ok1 "Starting test: BranchUnconditional", "oof"
   ClearDataStack
 
   TestRun 5, 1,   "Bitfield64BranchLessThan", "<", Expected_FALSE

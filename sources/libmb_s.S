@@ -43,9 +43,9 @@ getMemoryProcedure:
 # );
 .global _unsignedIntegerToStringBase16
 _unsignedIntegerToStringBase16:
-.bufferLength = 16
-.bufferLast = .bufferLength-1
-  addq $.bufferLast, %ALIEN_INTEGER64_ARGUMENT2 # advance arg2 to end of buffer
+bufferLength = 16
+bufferLast = bufferLength-1
+  addq $bufferLast, %ALIEN_INTEGER64_ARGUMENT2 # advance arg2 to end of buffer
   # copy new arg2 to ret1, which will track the left side of answer.
   # arg2 will stay at the right side of answer.
   movq %ALIEN_INTEGER64_ARGUMENT2, %ALIEN_INTEGER64_RETURN1
@@ -99,9 +99,9 @@ _unsignedIntegerToStringBase16:
 # );
 .global _unsignedIntegerToStringBase10
 _unsignedIntegerToStringBase10:
-.bufferLength = 20
-.bufferLast = .bufferLength-1
-  addq $.bufferLast, %rsi # skip arg2 to end of buffer
+bufferLength = 20
+bufferLast = bufferLength-1
+  addq $bufferLast, %rsi # skip arg2 to end of buffer
   # copy arg2 to arg5, which will track the left side of answer.
   # arg2 will stay at the right side of answer.
   movq %rsi, %rcx

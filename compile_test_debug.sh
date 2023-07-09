@@ -1,3 +1,6 @@
+#!/bin/bash
+./ensure_directories_exist.sh
+
 SOURCE_A="test_sources/$1.S"
 SOURCE_B="build/$1.S"
 EXECUTABLE="test_binaries/$1.elf64"

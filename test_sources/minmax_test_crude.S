@@ -1,15 +1,5 @@
 #include "TestAnythingProtocolProducer_s.h"
 
-# test results as of 2022-05-11T03:44-07:00:
-# MinimumSignedInteger64 => correct
-# MinimumUnsignedInteger64 => correct
-# MinimumSignedInteger8 => correct!
-# MinimumUnsignedInteger8 => correct!
-# MaximumSignedInteger64 => correct
-# MaximumUnsignedInteger64 => correct
-# MaximumSignedInteger8 => correct!
-# MaximumUnsignedInteger8 => correct!
-
 # Warning: pending name clarification, but in the meantime:
 # These macros accept TWO vectors of various lane sizes and types of value,
 # and render a blended result containing only the largest or smallest

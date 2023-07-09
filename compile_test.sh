@@ -1,4 +1,6 @@
 #!/bin/bash
+./ensure_directories_exist.sh
+
 set -o pipefail
 test=$1
 SOURCE_A="test_sources/$test.S"

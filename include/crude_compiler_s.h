@@ -1,7 +1,48 @@
 // "
-// Current poor-man's makefile:
-// gcc -fpic -nostartfiles -nostdlib -Wall -g -gdwarf-4 -g3 -F dwarf -m64 crude_compiler.S libmb_s.s -o crude_compiler.elf64 && ./crude_compiler.elf64; echo $?
-// Though ultimately I'm using `compile_w_debug.sh` and `compile_optimized.sh` until I can get proper makefile support online.
+
+// 2023-07-09T14:14-07:00 current status:
+// I'm hewing away from trying to replicate GAS preprocessor functionality exactly
+// , and I will instead focus on building my own similar preprocessor instructions
+// from scratch.
+// I will make all of my instructions begin with `.crude`
+// The following are the instructions I'm presently planning to target:
+// Assignment with .crudeDefine (similar to GAS `=`)
+// .macro & .endm -> .crudeMacro & .crudeMacroEnd
+// .include -> .crudeInclude -- vital given that my preprocessor will run
+//    prior to GAS's one
+// .memoryBlock and .endMemoryBlock will get their names updated to match.
+
+// 2023-07-05T20:13-07:00 current status:
+// I'm balking a bit at trying to finish flesching out the test suite of current
+// macros until I can gain a clearer understanding of both how I want to
+// expand my macros into optimizations that store top of stack elements in SIMD
+// registers, and to support muiltiple system ABIs (especially since
+// I've learned that Windows 10 via Cygwin at least will happily run an
+// elf64 binary I compiled for Linux I mean wtf is that even xD)
+// I want to figure out how to best abstract the compatibility layers
+// away from the functionality layers so that they can be tested separately
+// instead of succumbing to combinatorial explosion of a thousand functions
+// multiplied by dozens of possible compatability layer ways to express
+// those functions.
+
+// To this end, I think my next real goal is to fully replace my use of GAS
+// preprocessor by refining my own preprocessor.
+// Thoughts along this line so far:
+// 1. I should get crude_preprocessor.pl ported to awk
+// 2. I should attempt a TDD reverse engineering strategy. Work up a test harness
+// for GAS preprocessor with some example code to express whatever syntax
+// edge cases I can think of, and then build tests refined to guarantee
+// that what is being tested behaves identically to the GAS example I mold around.
+// Then I can use that test set to build my preprocessor to match its capabilities,
+// and more likely than not strategically loosen the tests to better suit
+// how I want my preprocessor to handle things (but w/o losing any advantages
+// GAS' strategy might offer that I otherwise might have overlooked along
+// the way).
+// 3. Regardless how GAS handles string vs numeric
+// , I will probably purposefully just lean heavily
+// on Awk's own duck-typing strategy.
+// 4. I've got to suss out how I want to support rvalue expressions such as
+// string concat and arithmetic.
 
 // 2023-07-02T18:16-07:00 current status:
 // ./test_all.sh and ./test_all_summary.sh are online and doin' fine :D
