@@ -32,9 +32,9 @@ _start:
 ** _unsignedIntegerToStringBase16 Test hex rendering of 0x1111111111111111 **
 ****************************************************************************/
 
-.memoryBlock Expected_0x1111111111111111
+.crudeMemoryBlock Expected_0x1111111111111111
 31313131 31313131 31313131 31313131
-.endMemoryBlock
+.crudeEndMemoryBlock
   Expected_0x1111111111111111_BYTE_8 = Expected_0x1111111111111111 + 8
 
   plan1 24 "subroutine tests"
@@ -78,9 +78,9 @@ _start:
 ** _unsignedIntegerToStringBase16 Test hex rendering of 0xDEADBEEF01234567 **
 ****************************************************************************/
 
-.memoryBlock Expected_0xDEADBEEF01234567
+.crudeMemoryBlock Expected_0xDEADBEEF01234567
 44454144 42454546 30313233 34353637
-.endMemoryBlock
+.crudeEndMemoryBlock
   Expected_0xDEADBEEF01234567_BYTE_8 = Expected_0xDEADBEEF01234567 + 8
 
   movq $0xDEADBEEF01234567, %ALIEN_INTEGER64_ARGUMENT1 // numeric value to render into hex
@@ -122,9 +122,9 @@ _start:
 ** _unsignedIntegerToStringBase16 Test hex rendering of 0x7 **
 **************************************************************/
 
-.memoryBlock Expected_0x7
+.crudeMemoryBlock Expected_0x7
 37
-.endMemoryBlock
+.crudeEndMemoryBlock
 
   movq $0x7, %ALIEN_INTEGER64_ARGUMENT1 // numeric value to render into hex
   leaq OUTPUT_BUFFER(%rip), %ALIEN_INTEGER64_ARGUMENT2 // place to print it
@@ -168,9 +168,9 @@ _start:
 ****************************************************************************/
 
 // 1229782938247303441
-.memoryBlock Expected_0x1111111111111112
+.crudeMemoryBlock Expected_0x1111111111111112
 31323239 37383239 33383234 37333033 343432
-.endMemoryBlock
+.crudeEndMemoryBlock
   Expected_0x1111111111111112_BYTE_8 = Expected_0x1111111111111112 + 8
   Expected_0x1111111111111112_BYTE_16 = Expected_0x1111111111111112 + 16
 
@@ -240,9 +240,9 @@ _start:
 ****************************************************************************/
 
 // 16045690981116495207
-.memoryBlock Expected_0xDEADBEEF01234568
+.crudeMemoryBlock Expected_0xDEADBEEF01234568
 31363034 35363930 39383131 31363439 35323038
-.endMemoryBlock
+.crudeEndMemoryBlock
   Expected_0xDEADBEEF01234568_BYTE_8 = Expected_0xDEADBEEF01234568 + 8
   Expected_0xDEADBEEF01234568_BYTE_16 = Expected_0xDEADBEEF01234568 + 16
 
@@ -309,9 +309,9 @@ _start:
 **************************************************************/
 
 // 11
-.memoryBlock Expected_0xB
+.crudeMemoryBlock Expected_0xB
 3131
-.endMemoryBlock
+.crudeEndMemoryBlock
 
   movq $0xB, %ALIEN_INTEGER64_ARGUMENT1 // numeric value to render into hex
   leaq OUTPUT_BUFFER(%rip), %ALIEN_INTEGER64_ARGUMENT2 // place to print it

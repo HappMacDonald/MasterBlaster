@@ -2,15 +2,15 @@
 
 #define ARBITRARY_DATA_STACK_BOOKEND 0x666
 
-.memoryBlock Expected_TRUE
+.crudeMemoryBlock Expected_TRUE
 FFFFFFFFFFFFFFFF FFFFFFFFFFFFFFFF
 6606000000000000 6606000000000000
-.endMemoryBlock
+.crudeEndMemoryBlock
 
-.memoryBlock Expected_FALSE
+.crudeMemoryBlock Expected_FALSE
 0000000000000000 0000000000000000
 6606000000000000 6606000000000000
-.endMemoryBlock
+.crudeEndMemoryBlock
 
 .macro TestRun operandA:req operandB:req operatorFullName:req operator:req expectation:req
   ClearDataStack

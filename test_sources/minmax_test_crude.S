@@ -14,9 +14,9 @@ _start:
 
   plan1 8 "minmax tests"
 
-.memoryBlock Expected_MinimumSignedInteger64
+.crudeMemoryBlock Expected_MinimumSignedInteger64
 FFFFFFFFFFFFFFFF 0300000000000000
-.endMemoryBlock
+.crudeEndMemoryBlock
   Bitfield64ImmediateVector128 -1, 7
   Bitfield64ImmediateVector128 3, 3
   // PrintStackMessage "Inputs to MinimumSignedInteger64:"
@@ -26,9 +26,9 @@ FFFFFFFFFFFFFFFF 0300000000000000
   ok1 "MinimumSignedInteger64", "oof"
   ClearDataStack
 
-.memoryBlock Expected_MinimumUnsignedInteger64
+.crudeMemoryBlock Expected_MinimumUnsignedInteger64
 0300000000000000 0300000000000000
-.endMemoryBlock
+.crudeEndMemoryBlock
   Bitfield64ImmediateVector128 -1, 3
   Bitfield64ImmediateVector128 3, 7
   // PrintStackMessage "Inputs to MinimumUnsignedInteger64:"
@@ -38,9 +38,9 @@ FFFFFFFFFFFFFFFF 0300000000000000
   ok1 "MinimumUnsignedInteger64", "oof"
   ClearDataStack
 
-.memoryBlock Expected_MinimumSignedInteger8
+.crudeMemoryBlock Expected_MinimumSignedInteger8
 CB	D1	FB	07	DB	E1	EF	13	E9	EF	E1	0B	D7	FB	D1	02
-.endMemoryBlock
+.crudeEndMemoryBlock
   Bitfield8ImmediateVector128 -2, 3, -5, 7, -11, 13, -17, 19, -23, 29, -31, 37, -41, 43, -47, 53
   Bitfield8ImmediateVector128 -53, -47, 43, 41, -37, -31, 29, 23, -19, -17, 13, 11, -7, -5, 3, 2
   // PrintStackMessage "Inputs to MinimumSignedInteger8:"
@@ -50,9 +50,9 @@ CB	D1	FB	07	DB	E1	EF	13	E9	EF	E1	0B	D7	FB	D1	02
   ok1 "MinimumSignedInteger8", "oof"
   ClearDataStack
 
-.memoryBlock Expected_MinimumUnsignedInteger8
+.crudeMemoryBlock Expected_MinimumUnsignedInteger8
 CB	03	2B	07	DB	0D	1D	13	E9	1D	0D	0B	D7	2B	03	02
-.endMemoryBlock
+.crudeEndMemoryBlock
   Bitfield8ImmediateVector128 -2, 3, -5, 7, -11, 13, -17, 19, -23, 29, -31, 37, -41, 43, -47, 53
   Bitfield8ImmediateVector128 -53, -47, 43, 41, -37, -31, 29, 23, -19, -17, 13, 11, -7, -5, 3, 2
   // PrintStackMessage "Inputs to MinimumUnsignedInteger8:"
@@ -62,9 +62,9 @@ CB	03	2B	07	DB	0D	1D	13	E9	1D	0D	0B	D7	2B	03	02
   ok1 "MinimumUnsignedInteger8", "oof"
   ClearDataStack
 
-.memoryBlock Expected_MaximumSignedInteger64
+.crudeMemoryBlock Expected_MaximumSignedInteger64
 0300000000000000 0700000000000000
-.endMemoryBlock
+.crudeEndMemoryBlock
   Bitfield64ImmediateVector128 -1, 7
   Bitfield64ImmediateVector128 3, 3
   // PrintStackMessage "Inputs to MaximumSignedInteger64:"
@@ -74,9 +74,9 @@ CB	03	2B	07	DB	0D	1D	13	E9	1D	0D	0B	D7	2B	03	02
   ok1 "MaximumSignedInteger64", "oof"
   ClearDataStack
 
-.memoryBlock Expected_MaximumUnsignedInteger64
+.crudeMemoryBlock Expected_MaximumUnsignedInteger64
 FFFFFFFFFFFFFFFF 0700000000000000
-.endMemoryBlock
+.crudeEndMemoryBlock
   Bitfield64ImmediateVector128 -1, 3
   Bitfield64ImmediateVector128 3, 7
   // PrintStackMessage "Inputs to MaximumUnsignedInteger64:"
@@ -86,9 +86,9 @@ FFFFFFFFFFFFFFFF 0700000000000000
   ok1 "MaximumUnsignedInteger64", "oof"
   ClearDataStack
 
-.memoryBlock Expected_MaximumSignedInteger8
+.crudeMemoryBlock Expected_MaximumSignedInteger8
 FE	03	2B	29	F5	0D	1D	17	ED	1D	0D	25	F9	2B	03	35
-.endMemoryBlock
+.crudeEndMemoryBlock
   Bitfield8ImmediateVector128 -2, 3, -5, 7, -11, 13, -17, 19, -23, 29, -31, 37, -41, 43, -47, 53
   Bitfield8ImmediateVector128 -53, -47, 43, 41, -37, -31, 29, 23, -19, -17, 13, 11, -7, -5, 3, 2
   // PrintStackMessage "Inputs to MaximumSignedInteger8:"
@@ -98,9 +98,9 @@ FE	03	2B	29	F5	0D	1D	17	ED	1D	0D	25	F9	2B	03	35
   ok1 "MaximumSignedInteger8", "oof"
   ClearDataStack
 
-.memoryBlock Expected_MaximumUnsignedInteger8
+.crudeMemoryBlock Expected_MaximumUnsignedInteger8
 FE	D1	FB	29	F5	E1	EF	17	ED	EF	E1	25	F9	FB	D1	35
-.endMemoryBlock
+.crudeEndMemoryBlock
   Bitfield8ImmediateVector128 -2, 3, -5, 7, -11, 13, -17, 19, -23, 29, -31, 37, -41, 43, -47, 53
   Bitfield8ImmediateVector128 -53, -47, 43, 41, -37, -31, 29, 23, -19, -17, 13, 11, -7, -5, 3, 2
   // PrintStackMessage "Inputs to MaximumUnsignedInteger8:"

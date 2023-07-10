@@ -12,9 +12,9 @@ _start:
   Bitfield8ImmediateVector128 80, 213, 65, 217, 120, 111, 48, 209, 130, 77, 35, 146, 143, 183, 238, 27
 
   BooleanAnd
-.memoryBlock Expected_BooleanAnd
+.crudeMemoryBlock Expected_BooleanAnd
 405401C070052040 004D03900E91A800
-.endMemoryBlock
+.crudeEndMemoryBlock
   stackFullTest Expected_BooleanAnd(%rip), count=1
   ok1 "BooleanAnd", "oof"
 
@@ -25,9 +25,9 @@ _start:
 
   BooleanOr
   // PrintStackMessage "BooleanOr"
-.memoryBlock Expected_BooleanOr
+.crudeMemoryBlock Expected_BooleanOr
 55FDF1DD7B7FBED5 DBED3FBBDFBFFFDB
-.endMemoryBlock
+.crudeEndMemoryBlock
   stackFullTest Expected_BooleanOr(%rip), count=1
   ok1 "BooleanOr", "oof"
 
@@ -37,18 +37,18 @@ _start:
 
   Bitfield8BooleanNot
   // PrintStackMessage "Bitfield8BooleanNot"
-.memoryBlock Expected_Bitfield8BooleanNot
+.crudeMemoryBlock Expected_Bitfield8BooleanNot
 0000000000000000 0000000000FF0000
-.endMemoryBlock
+.crudeEndMemoryBlock
   stackFullTest Expected_Bitfield8BooleanNot(%rip), count=1
   ok1 "Bitfield8BooleanNot", "oof"
 
 
-.memoryBlock Expected_Bitfield64BooleanNot1
+.crudeMemoryBlock Expected_Bitfield64BooleanNot1
 FFFFFFFFFFFFFFFF 0000000000000000
 0000000000000000 0000000000000000
 0000000000000000 0000000000000000
-.endMemoryBlock
+.crudeEndMemoryBlock
   Expected_Bitfield64BooleanNot2 = Expected_Bitfield64BooleanNot1 + SIMD_WIDTH
   Expected_Bitfield64BooleanNot3 = Expected_Bitfield64BooleanNot1 + SIMD_WIDTH_TIMES_2
 
@@ -91,9 +91,9 @@ FFFFFFFFFFFFFFFF 0000000000000000
   // PrintStackMessage "BooleanXor"
   BooleanXor
   // PrintStackMessage "BooleanXor"
-.memoryBlock Expected_BooleanXor
+.crudeMemoryBlock Expected_BooleanXor
 15A9F01D0B7A9E95 DBA03C2BD12E57DB
-.endMemoryBlock
+.crudeEndMemoryBlock
   stackFullTest Expected_BooleanXor(%rip), count=1
   ok1 "BooleanXor", "oof"
 
