@@ -1,4 +1,5 @@
-#include "TestAnythingProtocolProducer_s.h"
+.crudeIncludeOnce include/TestAnythingProtocolProducer_s.h
+
 
 #define ARBITRARY_DATA_STACK_BOOKEND 0x666
 

@@ -1,4 +1,6 @@
-#include "TestAnythingProtocolProducer_s.h"
+.crudeIncludeOnce include/TestAnythingProtocolProducer_s.h
+
+
 .text
 .globl _start
 _start:

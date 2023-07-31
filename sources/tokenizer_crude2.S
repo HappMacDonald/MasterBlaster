@@ -1,5 +1,5 @@
-#include "libmb_s.h"
-#include "tokenizer_tokens.h"
+.crudeIncludeOnce include/libmb_s.h
+.crudeIncludeOnce include/tokenizer_tokens.h
 
 // 2022-05-21T08:14-07:00 Current status:
 // Pre-empt: I want an easy to use TDD solution!

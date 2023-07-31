@@ -1,4 +1,4 @@
-#include "crude_compiler_s.h"
+.crudeIncludeOnce include/crude_compiler_s.h
 
 # Definitions
 

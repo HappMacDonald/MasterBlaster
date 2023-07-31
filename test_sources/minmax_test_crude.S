@@ -1,4 +1,4 @@
-#include "TestAnythingProtocolProducer_s.h"
+.crudeIncludeOnce include/TestAnythingProtocolProducer_s.h
 
 # Warning: pending name clarification, but in the meantime:
 # These macros accept TWO vectors of various lane sizes and types of value,

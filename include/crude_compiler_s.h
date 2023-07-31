@@ -1,5 +1,21 @@
 // "
 
+// 2023-07-31T00:00-07:00 current status:
+// .crudeIncludeOnce and .crudeIncludeEveryTime directives tested and working
+// brilliantly. I did sadly have to bypass native AWK pattern matching loop,
+// but at least I am still able to make my own and handle things cleanly
+// and without hackiness beyond "building a reliable and functional version
+// of my own input parsing loop".
+//
+// All modern crude source files updated to use new directives and tested
+// successfully.
+// All directives now leave verbose `#` comments that include the exact
+// directive text that called them.
+//
+// Next step will involve recursion and I want to realize my pre-processor
+// goal of recursively showing each unfold step in for (bet? pog?
+// roughly in the vicinity of fleek?)-levels of debug luxury.
+
 // 2023-07-09T14:14-07:00 current status:
 // I'm hewing away from trying to replicate GAS preprocessor functionality exactly
 // , and I will instead focus on building my own similar preprocessor instructions

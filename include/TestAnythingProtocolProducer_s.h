@@ -1,4 +1,4 @@
-#include "../include/libmb_s.h"
+.crudeIncludeOnce include/libmb_s.h
 
 // 2023-05-30T12:07-07:00 Current Status:
 // Woohoo, found/resolved problem printing things in general. :)

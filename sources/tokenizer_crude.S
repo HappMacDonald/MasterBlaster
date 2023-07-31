@@ -1,5 +1,5 @@
-#include "libmb_s.h"
-#include "tokenizer_tokens.h"
+.crudeIncludeOnce include/libmb_s.h
+.crudeIncludeOnce include/tokenizer_tokens.h
 
 BUFFER_LENGTH=4096
 

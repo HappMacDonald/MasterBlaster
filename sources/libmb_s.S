@@ -1,4 +1,4 @@
-#include "../include/libmb_s.h"
+.crudeIncludeOnce include/libmb_s.h
 
 .text
 # Procedures

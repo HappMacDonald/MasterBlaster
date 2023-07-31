@@ -1,4 +1,4 @@
-#include "libmb_s.h"
+.crudeIncludeOnce include/libmb_s.h
 
 # "
 # 2022-05-12T02:05-07:00 current status:

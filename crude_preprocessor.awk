@@ -7,6 +7,7 @@
 function error(message)
 { print("ERROR: " message) > "/dev/stderr"
 ; print("At line " NR ": " $0) > "/dev/stderr"
+; print("Comments stripped: " commentStripped) > "/dev/stderr"
 ; returnValue = 1
 ; exit 1
 }
@@ -94,7 +95,7 @@ BEGIN \
       }
       # Else result>0 and our read succeeded so we may proceed
     }
-    else # only if the include stack is 💯 empty
+    else # only while the include stack is completely empty
     { result = getline
     ; if(result<0)
       { error \
@@ -113,22 +114,20 @@ BEGIN \
 
     # If we get this far then $0 should be set as next line to parse
 
+    # Mock up a cleaner version of the line to further process
+    commentStripped = commentStrip($0)
+
     ##########################################
     ##  Manually Executed Match Conditions  ##
     ##########################################
 
-    # Early skip lines that are 100% number sign comments.
-    # There is a chance that instead of an actual comment
-    # this is a C-preprocessor directive.
+    # this might be a C-preprocessor directive, we can skip further processing here.
     if(match($0, /^[[:blank:]]*#/))
     { print # do pass it through to output
     ; continue # prevent any later rule from matching
     }
 
-    # only strip comments not already parsed above
-    $0 = commentStrip($0)
-
-    if(sub(/^[[:blank:]]*\.crudeIncludeOnce([[:blank:]]+|$)/, "", $0))
+    if(sub(/^[[:blank:]]*\.crudeIncludeOnce([[:blank:]]+|$)/, "", commentStripped))
     { if(NF<1)
       { error \
         ( ".crudeIncludeOnce directive requires a filename to include." \
@@ -141,14 +140,18 @@ BEGIN \
         )
       }
 
-      if($0 in includeOnceDone)
-      { continue; # File has already been included before, so silently ignore.
+    ; print "#Processed: " $0
+    ; includeFile=commentStripped
+    ; if(includeFile in includeOnceDone)
+      { print "# " includeFile " was already included before, so skipping."
+      ; continue;
       }
-    ; includeFileStack[++includeFileIndex] = $0
-    ; includeOnceDone[$0] = 1
+    ; includeFileStack[++includeFileIndex] = includeFile
+    ; includeOnceDone[includeFile] = 1
+    ; continue # prevent any later rule from matching
     }
 
-    if(sub(/^[[:blank:]]*\.crudeIncludeEveryTime([[:blank:]]+|$)/, "", $0))
+    if(sub(/^[[:blank:]]*\.crudeIncludeEveryTime([[:blank:]]+|$)/, "", commentStripped))
     { if(NF<1)
       { error \
         ( ".crudeIncludeEveryTime directive requires a filename to include." \
@@ -161,10 +164,13 @@ BEGIN \
         )
       }
 
-    ; includeFileStack[++includeFileIndex] = $0
+    ; includeFile=commentStripped
+    ; includeFileStack[++includeFileIndex] = includeFile
+    ; print "#Processed: " $0
+    ; continue # prevent any later rule from matching
     }
 
-    if(/^[ \t]*\.crudeMemoryBlock([ \t]|$)/)
+    if(/^[[:blank:]]*\.crudeMemoryBlock([[:blank:]]|$)/)
     { if(NF<2)
       { error(".crudeMemoryBlock directive requires 1 field to name the memory block.")
       }
@@ -174,6 +180,7 @@ BEGIN \
     ; if(readMode == READMODE_MEMORY_BLOCK)
       { error(".crudeMemoryBlock directive encountered while already inside of a memory block")
       }
+    ; print "#Processed: " $0
     ; memoryBlockHandle = $2
     ; hereToken = NR
     ; print "  jmp crudePreprocessorEndMemoryBlock" hereToken
@@ -185,14 +192,15 @@ BEGIN \
     ; continue # prevent any later rule from matching
     }
 
-    if(/^[ \t]*\.crudeEndMemoryBlock/)
+    if(/^[[:blank:]]*\.crudeEndMemoryBlock/)
     { if(readMode != READMODE_MEMORY_BLOCK)
       { error(".crudeEndMemoryBlock directive encountered outside of a memory block")
       }
-    ; if(!/^[ \t]*\.crudeEndMemoryBlock[ \t]*$/)
+    ; if(!/^[[:blank:]]*\.crudeEndMemoryBlock[[:blank:]]*$/)
       { error(".crudeEndMemoryBlock directive must not include any arguments")
       }
 
+    ; print "#Processed: " $0
     ; print "crudePreprocessorEndMemoryBlock" hereToken ":"
     ; hereToken = -1
     ; readMode = READMODE_NONE
@@ -200,19 +208,20 @@ BEGIN \
     ; continue # prevent any later rule from matching
     }
 
-    if(/^[ \t]*\.crude/)
+    if(/^[[:blank:]]*\.crude/)
     { error("Unidentified crude preprocessor directive encountered")
     ; continue # prevent any later rule from matching
     }
 
     if(readMode == READMODE_MEMORY_BLOCK)
-    { hexData = normalizeInputToHexadecimalDigits($0)
+    { hexData = normalizeInputToHexadecimalDigits(commentStripped)
       # If odd number of hex digits, prepend a single zero digit.
     ; if(length(hexData) % 2 != 0)
       { hexData = "0" hexData
       }
     ; numberOfBytes = int(length(hexData)/2)
 
+    ; print "#Processed: " $0
     ; printf ".byte"
     ; for(byteIndex=0; byteIndex<numberOfBytes; byteIndex++)
       { if(byteIndex!=0)
