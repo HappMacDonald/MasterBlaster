@@ -42,6 +42,61 @@ function commentStrip(input)
 ; return input
 }
 
+# This accepts one numeric field index such as "2"
+# It then deletes that field ($2), shifting all higher-index fields to the left.
+# $0 and NF ARE both updated properly, and this SHOULD be POSIX compliant.
+# Function returns the value of the single field that got deleted as well.
+# Results undefined if `field` passed in is outside range from 1..NF
+function shiftParseField(field,    fieldIndex, returnField)
+{ returnField = $(field)
+; for(fieldIndex=field; fieldIndex<NF; fieldIndex++)
+  { #print "$" fieldIndex "=$" (fieldIndex+1) "\n[" $(fieldIndex) "]=[" $(fieldIndex+1) "]"
+  ; $(fieldIndex)=$(fieldIndex+1)
+  }
+; $(NF)=""
+; $0=$0
+; return returnField
+}
+
+# Searches `subject` for `find`.
+# If and only if found, the first found occurence is replaced with `replace`.
+# The resulting modified string is returned.
+function replaceStringFirst(subject, find, replace,    startPosition)
+{ startPosition = index($0, constantName)
+; return \
+  ( substr(subject, 0, startPosition-1) \
+    replace \
+    substr(subject, startPosition + length(find)) \
+  )
+}
+
+# This accepts one string value, and shifts the first block of non-whitespace
+# off of the beginning. It returns an array result *through the second argument*
+# with [0] being the block of nonwhitespace at the beginning
+# , and [1] being the remainder of the string.
+# Both return value are outer-trimmed of any whitespace as well.
+# Example: shiftStringFirstField(" \thello \t \t\tthere,  how\tdo you do today?\n")
+# -> [0] = "hello" & [1] = "there,  how\tdo you do today?"
+# Example: shiftStringFirstField("HI!!")
+# -> [0] = "HI!!" & [1] = ""
+# Example: shiftStringFirstField("")
+# -> [0] = "" & [1] = ""
+function shiftStringFirstField(string, returnArray)
+{ gsub(/(^[[:blank:]]+|[[:blank:]]+$)/, "", string)
+; returnArray[0] = string
+; returnArray[1] = string
+; sub(/[[:blank:]].*/, "", returnArray[0])
+; sub(/^[^[:blank:]]+[[:blank:]]+/, "", returnArray[1])
+}
+
+# Does what it says on the tin
+function emptyArray(array,      arrayIndex)
+{ delete array[0] # in case was not already defined as an array
+; for(arrayIndex in array)
+  { delete array[arrayIndex]
+  }
+}
+
 #####################
 ##  BEGIN section  ##
 #####################
@@ -63,8 +118,10 @@ BEGIN \
 ; memoryBlockHandle = ""
 
 ; includeFileIndex = -1 # start with empty lifo stack of include files to parse
-; delete includeFileStack[0] # This initializes includeFileStack as an empty array
-; delete includeOnceDone[0] # This initializes includeOnceDone as an empty array
+; emptyArray(includeFileStack)
+; emptyArray(includeOnceDone)
+; emptyArray(constantTable)
+; emptyArray(constantsAlreadyExpanded)
 
 ; for(argvIndex in ARGV)
   { if(ARGV[argvIndex] ~ /^--?(\?|h|he|hel|help)$/)
@@ -76,58 +133,70 @@ BEGIN \
   ##  Manually Executed Input Parsing Loop  ##
   ############################################
 
+; repeatInput = FALSE
   # We will manually exit loop after exhausting all possible lines to parse
   # or upon any showstopping error
-  while(TRUE)
-  { if(includeFileIndex>=0) # If there exists an include stack
-    { result = getline < includeFileStack[includeFileIndex]
-    ; if(result<0)
-      { error \
-        ( "Error trying to read from " \
-          "'" includeFileStack[includeFileIndex] "'" \
-          " out of the include stack" \
-        )
+; while(TRUE)
+  { if(!repeatInput)
+    { emptyArray(constantsAlreadyExpanded)
+    ; if(includeFileIndex>=0) # If there exists an include stack
+      { result = getline < includeFileStack[includeFileIndex]
+      ; if(result<0)
+        { error \
+          ( "Error trying to read from " \
+            "'" includeFileStack[includeFileIndex] "'" \
+            " out of the include stack" \
+          )
+        }
+        else if(result==0) # EOF
+        { close(includeFileStack[includeFileIndex])
+        ; delete includeFileStack[includeFileIndex--] # pop this file from stack
+        ; continue # retry read on whatever is left on stack or on primary input stream
+        }
+        # Else result>0 and our read succeeded so we may proceed
       }
-      else if(result==0) # EOF
-      { close(includeFileStack[includeFileIndex])
-      ; delete includeFileStack[includeFileIndex--] # pop this file from stack
-      ; continue # retry read on whatever is left on stack or on primary input stream
+      else # only while the include stack is completely empty
+      { result = getline
+      ; if(result<0)
+        { error \
+          ( "Error trying to read from " \
+            "'" FILENAME "'" \
+            " out of the primary input stream" \
+          )
+        }
+        else if(result==0) # EOF
+        { # if primary input stream is exhausted,
+          # then ultimate parsing loop is also complete
+        ; break
+        }
+        # Else result>0 and our read succeeded so we may proceed
       }
-      # Else result>0 and our read succeeded so we may proceed
     }
-    else # only while the include stack is completely empty
-    { result = getline
-    ; if(result<0)
-      { error \
-        ( "Error trying to read from " \
-          "'" FILENAME "'" \
-          " out of the primary input stream" \
-        )
-      }
-      else if(result==0) # EOF
-      { # if primary input stream is exhausted,
-        # then ultimate parsing loop is also complete
-      ; break
-      }
-      # Else result>0 and our read succeeded so we may proceed
-    }
+    # else — because we are repating input — constantsAlreadyExpanded survives.
+  ; repeatInput = FALSE
+
 
     # If we get this far then $0 should be set as next line to parse
 
     # Mock up a cleaner version of the line to further process
-    commentStripped = commentStrip($0)
+  ; commentStripped = commentStrip($0)
 
     ##########################################
     ##  Manually Executed Match Conditions  ##
     ##########################################
 
     # this might be a C-preprocessor directive, we can skip further processing here.
-    if(match($0, /^[[:blank:]]*#/))
+  ; if(match($0, /^[[:blank:]]*#/))
     { print # do pass it through to output
     ; continue # prevent any later rule from matching
     }
 
-    if(sub(/^[[:blank:]]*\.crudeIncludeOnce([[:blank:]]+|$)/, "", commentStripped))
+  ; shiftStringFirstField(commentStripped, pieces)
+  ; possibleDirective = pieces[0]
+  ; directiveContents = pieces[1]
+
+    # if(sub(/^[[:blank:]]*\.crudeIncludeOnce([[:blank:]]+|$)/, "", commentStripped))
+  ; if(possibleDirective == ".crudeIncludeOnce")
     { if(NF<1)
       { error \
         ( ".crudeIncludeOnce directive requires a filename to include." \
@@ -141,7 +210,7 @@ BEGIN \
       }
 
     ; print "#Processed: " $0
-    ; includeFile=commentStripped
+    ; includeFile=directiveContents
     ; if(includeFile in includeOnceDone)
       { print "# " includeFile " was already included before, so skipping."
       ; continue;
@@ -151,7 +220,8 @@ BEGIN \
     ; continue # prevent any later rule from matching
     }
 
-    if(sub(/^[[:blank:]]*\.crudeIncludeEveryTime([[:blank:]]+|$)/, "", commentStripped))
+    # if(sub(/^[[:blank:]]*\.crudeIncludeEveryTime([[:blank:]]+|$)/, "", commentStripped))
+  ; if(possibleDirective==".crudeIncludeEveryTime")
     { if(NF<1)
       { error \
         ( ".crudeIncludeEveryTime directive requires a filename to include." \
@@ -164,13 +234,44 @@ BEGIN \
         )
       }
 
-    ; includeFile=commentStripped
+    ; includeFile=directiveContents
     ; includeFileStack[++includeFileIndex] = includeFile
     ; print "#Processed: " $0
     ; continue # prevent any later rule from matching
     }
 
-    if(/^[[:blank:]]*\.crudeMemoryBlock([[:blank:]]|$)/)
+    # if(sub(/^[[:blank:]]*\.crudeDefine([[:blank:]]+|$)/, "", commentStripped))
+  ; if(possibleDirective==".crudeDefine")
+    { if(NF<2)
+      { error \
+        ( ".crudeDefine directive requires both a constant to define, and a" \
+          " value to define it to." \
+          "\nSyntax:" \
+          "\n.crudeDefine <constant> <value>" \
+          "\n.crudeDefine <constant> <value> # comment not included in value" \
+        )
+      }
+
+    ; print "#Processed: " $0
+    ; shiftStringFirstField(directiveContents, pieces)
+    ; constantName = pieces[0]
+    ; constantValue = pieces[1]
+    ; if(constantName in constantTable)
+      { error \
+        ( "Attempt to .crudeDefine constant name '"\
+          constantName\
+          "' despite that name already being set to value '"\
+          constantTable[constantName]\
+          "' earlier in this session."\
+          "\nPlease .crudeUndefine a constant before trying to set it again."\
+        )
+      }
+    ; constantTable[constantName] = constantValue
+    ; continue # prevent any later rule from matching
+    }
+
+
+  ; if(/^[[:blank:]]*\.crudeMemoryBlock([[:blank:]]|$)/)
     { if(NF<2)
       { error(".crudeMemoryBlock directive requires 1 field to name the memory block.")
       }
@@ -192,7 +293,7 @@ BEGIN \
     ; continue # prevent any later rule from matching
     }
 
-    if(/^[[:blank:]]*\.crudeEndMemoryBlock/)
+  ; if(/^[[:blank:]]*\.crudeEndMemoryBlock/)
     { if(readMode != READMODE_MEMORY_BLOCK)
       { error(".crudeEndMemoryBlock directive encountered outside of a memory block")
       }
@@ -208,12 +309,37 @@ BEGIN \
     ; continue # prevent any later rule from matching
     }
 
-    if(/^[[:blank:]]*\.crude/)
+  ; if(/^[[:blank:]]*\.crude/)
     { error("Unidentified crude preprocessor directive encountered")
     ; continue # prevent any later rule from matching
     }
 
-    if(readMode == READMODE_MEMORY_BLOCK)
+    # Check for constants and macros to expand:
+    for(constantName in constantTable)
+    { # Bail unless *stripped* text has match...
+    ; if \
+      ( constantName in constantsAlreadyExpanded \
+      ||index(commentStripped, constantName)<1 \
+      )
+      { continue; # search for next constant name
+      }
+      # We must have hit a constant name!
+    ; print "#Processed: " $0
+    ; repeatInput = TRUE
+    ; constantsAlreadyExpanded[constantName] = 1
+
+    # ... but then perform replace on *unstripped* text.
+    ; $0 = replaceStringFirst($0, constantName, constantTable[constantName])
+    }
+
+    # Above constant and macro scanning WILL alter $0 and set `repeatInput`
+    # if work done, so here we catch that condition and restart
+    # the parsing loop.
+    if(repeatInput)
+    { continue
+    }
+
+  ; if(readMode == READMODE_MEMORY_BLOCK)
     { hexData = normalizeInputToHexadecimalDigits(commentStripped)
       # If odd number of hex digits, prepend a single zero digit.
     ; if(length(hexData) % 2 != 0)
@@ -227,18 +353,18 @@ BEGIN \
       { if(byteIndex!=0)
         { printf ","
         }
-        printf " 0x" substr(hexData, byteIndex*2+1, 2)
+      ; printf " 0x" substr(hexData, byteIndex*2+1, 2)
       }
-      printf "\n"
+    ; printf "\n"
     ; continue # prevent any later rule from matching
     }
 
-    if(readMode == READMODE_NONE)
+  ; if(readMode == READMODE_NONE)
     { print
     ; continue # prevent any later rule from matching
     }
 
-    ; error("Internal error: somehow got to unrecognized read mode (" readMode ")")
+  ; error("Internal error: somehow got to unrecognized read mode (" readMode ")")
   }
 }
 
@@ -261,5 +387,5 @@ END \
   ; exit 1
   }
 
-  exit 0
+; exit 0
 }

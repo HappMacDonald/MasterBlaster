@@ -1,5 +1,21 @@
 // "
 
+// 2023-07-31T05:29-07:00 current status:
+// == In progress to reproduce:
+// * https://ftp.gnu.org/old-gnu/Manuals/gas-2.9.1/html_chapter/as_7.html#SEC120
+// * https://ftp.gnu.org/old-gnu/Manuals/gas-2.9.1/html_chapter/as_7.html#SEC96
+// * https://ftp.gnu.org/old-gnu/Manuals/gas-2.9.1/html_chapter/as_7.html#SEC109
+//
+// .crudeDefine is 90% functional now.
+// * It stops infinite regress, even when indirect.
+// * It eloquantly complains if you try to redefine a constant, recommending
+// that you instead use a directive that doesn't exist yet just as I prescribed lol
+// * Main thing left right now is to figure out what "word boundary" pragma
+// to somehow force it to match on. So far it's matching with no respect for
+// word boundaries.
+// .crudeDefine bar !!!!
+// Barbarella => Bar!!!ella
+
 // 2023-07-31T00:00-07:00 current status:
 // .crudeIncludeOnce and .crudeIncludeEveryTime directives tested and working
 // brilliantly. I did sadly have to bypass native AWK pattern matching loop,
